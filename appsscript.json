@@ -1,0 +1,23 @@
+{
+  "timeZone": "Europe/Brussels",
+  "dependencies": {},
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/documents.currentonly",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.locale"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Sticky Assistant",
+      "logoUrl": "https://www.gstatic.com/images/branding/product/1x/keep_48dp.png",
+      "useLocaleFromApp": true
+    },
+    "docs": {
+      "homepageTrigger": {
+        "runFunction": "onHomepage"
+      }
+    }
+  },
+  "runtimeVersion": "V8",
+  "exceptionLogging": "STACKDRIVER"
+}
