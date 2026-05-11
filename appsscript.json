@@ -1,20 +1,39 @@
 {
   "timeZone": "Europe/Brussels",
-  "dependencies": {},
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Docs",
+        "serviceId": "docs",
+        "version": "v1"
+      }
+    ]
+  },
   "oauthScopes": [
-    "https://www.googleapis.com/auth/documents.currentonly",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive.addons.metadata.readonly",
+    "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/script.locale"
   ],
   "addOns": {
     "common": {
       "name": "Sticky Assistant",
-      "logoUrl": "https://www.gstatic.com/images/branding/product/1x/keep_48dp.png",
-      "useLocaleFromApp": true
+      "logoUrl": "https://svsticky.nl/icons/icon-48x48.png",
+      "useLocaleFromApp": true,
+      "layoutProperties": {
+        "primaryColor": "#FA6B20",
+        "secondaryColor": "#FA6B20"
+      }
     },
     "docs": {
       "homepageTrigger": {
         "runFunction": "onHomepage"
+      }
+    },
+    "drive": {
+      "onItemsSelectedTrigger": {
+        "runFunction": "onDriveSelection"
       }
     }
   },

@@ -1,8 +1,38 @@
-// 1. Homepage: Shows the main menu
+// 1. Homepage: Shows the tool selector
 function onHomepage(e) {
+  return buildToolSelectorCard(e);
+}
+
+function buildToolSelectorCard(e) {
+  const lang = getLanguage();
+  const builder = CardService.newCardBuilder();
+  builder.setHeader(CardService.newCardHeader().setTitle(getAppName()));
+
+  const section = CardService.newCardSection();
+  section.addWidget(CardService.newTextParagraph().setText(t(lang, 'toolSelectorHelp')));
+
+  const actionPointsAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
+    section.addWidget(CardService.newTextButton()
+      .setText(getToolTitle('actionPoints'))
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(actionPointsAction));
+
+  const committeeAction = CardService.newAction().setFunctionName('onCommitteeHomepage');
+    section.addWidget(CardService.newTextButton()
+      .setText(getToolTitle('committees'))
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor(getToolAccent('committees'))
+      .setOnClickAction(committeeAction));
+
+  builder.addSection(section);
+  return builder.build();
+}
+
+// 2. Action Points: Shows the main menu
+function onActionPointsHomepage(e) {
   const lang = getLanguage();
   let builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle(t(lang, 'appTitle')));
+  builder.setHeader(CardService.newCardHeader().setTitle(getToolTitle('actionPoints')));
 
   let section = CardService.newCardSection();
 
@@ -71,7 +101,7 @@ function buildSettingsCard(e) {
       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
       .setOnClickAction(saveAction));
 
-  let backAction = CardService.newAction().setFunctionName('onHomepage');
+  let backAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
   section.addWidget(CardService.newTextButton()
       .setText(t(lang, 'backToMenu'))
       .setOnClickAction(backAction));
@@ -113,7 +143,7 @@ function saveSettings(e) {
 
   return CardService.newActionResponseBuilder()
       .setNotification(CardService.newNotification().setText(t(lang, 'settingsSaved')))
-      .setNavigation(CardService.newNavigation().popToRoot().updateCard(onHomepage(e)))
+      .setNavigation(CardService.newNavigation().popToRoot().updateCard(onActionPointsHomepage(e)))
       .build();
 }
 
@@ -125,7 +155,7 @@ function createMessageCard(title, message) {
   let section = CardService.newCardSection();
   section.addWidget(CardService.newTextParagraph().setText(message));
 
-  let backAction = CardService.newAction().setFunctionName('onHomepage');
+  let backAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
   section.addWidget(CardService.newTextButton().setText(t(lang, 'backToMenu')).setOnClickAction(backAction));
 
   builder.addSection(section);

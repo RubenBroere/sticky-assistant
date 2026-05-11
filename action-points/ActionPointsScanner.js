@@ -203,7 +203,7 @@ function scanDocument(e) {
     actionSection.addWidget(CardService.newTextParagraph().setText(`<i>${t(lang, 'todoistDisabled')}</i>`));
   }
 
-  let backAction = CardService.newAction().setFunctionName('onHomepage');
+  let backAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
   actionSection.addWidget(CardService.newTextButton().setText(t(lang, 'back')).setOnClickAction(backAction));
 
   builder.addSection(actionSection);
