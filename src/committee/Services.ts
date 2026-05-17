@@ -1,5 +1,5 @@
-import { COMMITTEE_CONFIG } from './CommitteeConfig';
-import { getUniqueFileName, getOrCreateFolder, transformText } from './CommitteeUtils';
+import { COMMITTEE_CONFIG } from './Config';
+import { getUniqueFileName, getOrCreateFolder, transformText } from './Utils';
 
 /**
  * Core cloning logic for a single committee.

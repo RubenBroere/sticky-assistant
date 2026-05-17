@@ -1,9 +1,9 @@
 import { getToolTitle, getToolAccent } from '../core/Branding';
-import { getLanguage, t } from '../core/Locale';
-import { COMMITTEE_CONFIG } from './CommitteeConfig';
-import { createCommitteeMessageCard, createCommitteeAnalyzeCard } from './CommitteeUi';
-import { analyzeFolderName, transformText, getOrCreateFolder } from './CommitteeUtils';
-import { scanForCommittees, processCommitteeCloning, updateDocLinks } from './CommitteeServices';
+import { t } from '../core/Locale';
+import { COMMITTEE_CONFIG } from './Config';
+import { createCommitteeMessageCard, createCommitteeAnalyzeCard } from './Ui';
+import { analyzeFolderName, transformText, getOrCreateFolder } from './Utils';
+import { scanForCommittees, processCommitteeCloning, updateDocLinks } from './Services';
 
 /**
  * Entry point for the committee tool homepage.
@@ -13,27 +13,26 @@ import { scanForCommittees, processCommitteeCloning, updateDocLinks } from './Co
  * @return {CardService.Card} The homepage card.
  */
 export function onCommitteeHomepage(e: any) {
-  const lang = getLanguage();
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
-      .setTitle(t(lang, "committeeWelcomeTitle", { appTitle: getToolTitle('committees') }))
+      .setTitle(t("committeeWelcomeTitle", { appTitle: getToolTitle('committees') }))
       .setImageStyle(CardService.ImageStyle.CIRCLE))
     .addSection(CardService.newCardSection()
       .addWidget(CardService.newTextParagraph()
-        .setText(t(lang, "committeeWelcomeIntro")))
+        .setText(t("committeeWelcomeIntro")))
       .addWidget(CardService.newTextParagraph()
-        .setText(t(lang, "committeeHowToSteps")))
+        .setText(t("committeeHowToSteps")))
     )
     .addSection(CardService.newCardSection()
-      .setHeader(t(lang, "committeeFeaturesTitle"))
+      .setHeader(t("committeeFeaturesTitle"))
       .addWidget(CardService.newKeyValue()
-        .setTopLabel(t(lang, "committeeFeatureDetectionTitle"))
-        .setContent(t(lang, "committeeFeatureDetectionBody"))
+        .setTopLabel(t("committeeFeatureDetectionTitle"))
+        .setContent(t("committeeFeatureDetectionBody"))
         .setIcon(COMMITTEE_CONFIG.ICONS.MAGIC)
         .setMultiline(true))
       .addWidget(CardService.newKeyValue()
-        .setTopLabel(t(lang, "committeeFeatureContentTitle"))
-        .setContent(t(lang, "committeeFeatureContentBody"))
+        .setTopLabel(t("committeeFeatureContentTitle"))
+        .setContent(t("committeeFeatureContentBody"))
         .setIcon(COMMITTEE_CONFIG.ICONS.DESCRIPTION)
         .setMultiline(true))
     )
@@ -48,24 +47,23 @@ export function onCommitteeHomepage(e: any) {
  * @return {CardService.Card} The UI card to display.
  */
 export function onDriveSelection(e: any) {
-  const lang = getLanguage();
   // Guard clause for invalid event object
   if (!e || !e.drive || !e.drive.selectedItems) {
-    return createCommitteeMessageCard(t(lang, "committeeSelectFolder"), true);
+    return createCommitteeMessageCard(t("committeeSelectFolder"), true);
   }
 
   const items = e.drive.selectedItems;
   if (items.length === 0) {
-    return createCommitteeMessageCard(t(lang, "committeeSelectFolder"), true);
+    return createCommitteeMessageCard(t("committeeSelectFolder"), true);
   }
 
   if (items.length > 1) {
-    return createCommitteeMessageCard(t(lang, "committeeSelectSingleFolder"), false);
+    return createCommitteeMessageCard(t("committeeSelectSingleFolder"), false);
   }
 
   const item = items[0];
   if (item.mimeType !== (MimeType as any).FOLDER) {
-    return createCommitteeMessageCard(t(lang, "committeeNotFolder"), false);
+    return createCommitteeMessageCard(t("committeeNotFolder"), false);
   }
 
   return createCommitteeAnalyzeCard(item.title, item.id);
@@ -79,55 +77,54 @@ export function onDriveSelection(e: any) {
  * @return {CardService.Card} The UI card displaying the scan results or an error.
  */
 export function runScan(e: any) {
-  const lang = getLanguage();
   const sourceId = e.parameters.sourceId;
   const folderName = e.parameters.folderName;
 
   const analysis = analyzeFolderName(folderName);
   if (!analysis.found) {
-    return createCommitteeMessageCard(t(lang, "committeeNoYearPattern"), false);
+    return createCommitteeMessageCard(t("committeeNoYearPattern"), false);
   }
 
   const sourceFolder = DriveApp.getFolderById(sourceId);
   const scanResult = scanForCommittees(sourceFolder);
 
   if (scanResult.mode === "none") {
-    return createCommitteeMessageCard(t(lang, "committeeInvalidStructure", { templateName: COMMITTEE_CONFIG.TEMPLATE_NAME }), false);
+    return createCommitteeMessageCard(t("committeeInvalidStructure", { templateName: COMMITTEE_CONFIG.TEMPLATE_NAME }), false);
   }
 
   const section = CardService.newCardSection()
     .addWidget(CardService.newKeyValue()
-      .setTopLabel(t(lang, "committeeStructureDetected"))
+      .setTopLabel(t("committeeStructureDetected"))
       .setContent(scanResult.mode === "direct"
-        ? t(lang, "committeeSingleCommittee")
-        : t(lang, "committeeParentGroup", { count: scanResult.committees.length }))
+        ? t("committeeSingleCommittee")
+        : t("committeeParentGroup", { count: scanResult.committees.length }))
       .setIcon(COMMITTEE_CONFIG.ICONS.INFO)
       .setMultiline(true))
     .addWidget(CardService.newKeyValue()
-      .setTopLabel(t(lang, "committeeCurrentPattern"))
+      .setTopLabel(t("committeeCurrentPattern"))
       .setContent(analysis.currentPattern)
       .setIcon(COMMITTEE_CONFIG.ICONS.CLOCK)
       .setMultiline(true))
     .addWidget(CardService.newKeyValue()
-      .setTopLabel(t(lang, "committeeNextCycle"))
+      .setTopLabel(t("committeeNextCycle"))
       .setContent(analysis.nextFull)
       .setIcon(COMMITTEE_CONFIG.ICONS.MAGIC)
       .setMultiline(true));
 
   const actionSection = CardService.newCardSection()
-    .setHeader(t(lang, "committeeActionPlan"))
+    .setHeader(t("committeeActionPlan"))
     .addWidget(CardService.newDecoratedText()
-      .setText(t(lang, "committeeCreateFolder", { name: analysis.nextFull }))
+      .setText(t("committeeCreateFolder", { name: analysis.nextFull }))
       .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CONFIRMATION_NUMBER_ICON))
       .setWrapText(true))
     .addWidget(CardService.newDecoratedText()
       .setText(scanResult.mode === "direct"
-        ? t(lang, "committeeCloneTemplateContent")
-        : t(lang, "committeeCloneAllSubCommittees"))
+        ? t("committeeCloneTemplateContent")
+        : t("committeeCloneAllSubCommittees"))
       .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
       .setWrapText(true))
     .addWidget(CardService.newTextButton()
-      .setText(t(lang, "committeeExecuteClone"))
+      .setText(t("committeeExecuteClone"))
       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
       .setBackgroundColor(getToolAccent('committees'))
       .setOnClickAction(CardService.newAction()
@@ -136,7 +133,7 @@ export function runScan(e: any) {
       ));
 
   return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle(t(lang, "committeeConfirmExecution")))
+    .setHeader(CardService.newCardHeader().setTitle(t("committeeConfirmExecution")))
     .addSection(section)
     .addSection(actionSection)
     .build();
@@ -151,7 +148,6 @@ export function runScan(e: any) {
  * @return {CardService.Card} The success or error card.
  */
 export function runExecution(e: any) {
-  const lang = getLanguage();
   console.log("Started execution", JSON.stringify(e.parameters));
   const sourceId = e.parameters.sourceId;
   const folderName = e.parameters.folderName;
@@ -198,26 +194,26 @@ export function runExecution(e: any) {
 
     // Return success card
     return (CardService as any).newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText(t(lang, "committeeSuccessCreated", { name: newRootName })))
+      .setNotification(CardService.newNotification().setText(t("committeeSuccessCreated", { name: newRootName })))
       .setNavigation(CardService.newNavigation().updateCard(
         CardService.newCardBuilder()
-          .setHeader(CardService.newCardHeader().setTitle(t(lang, "committeeTaskComplete")))
+          .setHeader(CardService.newCardHeader().setTitle(t("committeeTaskComplete")))
           .addSection(CardService.newCardSection()
             .addWidget(CardService.newKeyValue()
-              .setTopLabel(t(lang, "committeeStatus"))
-              .setContent(t(lang, "committeeStatusSuccess"))
+              .setTopLabel(t("committeeStatus"))
+              .setContent(t("committeeStatusSuccess"))
               .setIcon(COMMITTEE_CONFIG.ICONS.CHECK)
               .setButton(CardService.newTextButton()
-                .setText(t(lang, "committeeOpenFolder"))
+                .setText(t("committeeOpenFolder"))
                 .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
                 .setBackgroundColor(getToolAccent('committees'))
                 .setOpenLink(CardService.newOpenLink().setUrl(destRootFolder.getUrl()))))
             .addWidget(CardService.newKeyValue()
-              .setTopLabel(t(lang, "committeeCreatedFolder"))
+              .setTopLabel(t("committeeCreatedFolder"))
               .setContent(newRootName)
               .setMultiline(true))
             .addWidget(CardService.newTextButton()
-              .setText(t(lang, "committeeStartOver"))
+              .setText(t("committeeStartOver"))
               .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
               .setBackgroundColor(getToolAccent('committees'))
               .setOnClickAction(CardService.newAction().setFunctionName("onDriveSelection"))
@@ -228,7 +224,7 @@ export function runExecution(e: any) {
 
   } catch (err: any) {
     console.error(err);
-    return createCommitteeMessageCard(t(lang, "committeeErrorPrefix", { error: err.toString() }), false);
+    return createCommitteeMessageCard(t("committeeErrorPrefix", { error: err.toString() }), false);
   }
 }
 

@@ -1,19 +1,17 @@
 import { getAppName, getToolTitle, getToolAccent } from './Branding';
-import { getLanguage, t } from './Locale';
-import { validatePeopleConfig } from '../action-points/ActionPointsConfig';
+import { getLanguage, setLanguage, t } from './Locale';
 
-// 1. Homepage: Shows the tool selector
+// Homepage: Shows the tool selector
 export function onHomepage(e: any) {
   return buildToolSelectorCard(e);
 }
 
 export function buildToolSelectorCard(e: any) {
-  const lang = getLanguage();
   const builder = CardService.newCardBuilder();
   builder.setHeader(CardService.newCardHeader().setTitle(getAppName()));
 
   const section = CardService.newCardSection();
-  section.addWidget(CardService.newTextParagraph().setText(t(lang, 'toolSelectorHelp')));
+  section.addWidget(CardService.newTextParagraph().setText(t('toolSelectorHelp')));
 
   const actionPointsAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
     section.addWidget(CardService.newTextButton()
@@ -28,139 +26,93 @@ export function buildToolSelectorCard(e: any) {
       .setBackgroundColor(getToolAccent('committees'))
       .setOnClickAction(committeeAction));
 
-  builder.addSection(section);
-  return builder.build();
-}
-
-// 2. Action Points: Shows the main menu
-export function onActionPointsHomepage(e: any) {
-  const lang = getLanguage();
-  let builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle(getToolTitle('actionPoints')));
-
-  let section = CardService.newCardSection();
-
-  let scanAction = CardService.newAction().setFunctionName('scanDocument');
+  // Common Settings Button
+  const settingsAction = CardService.newAction().setFunctionName('buildSettingsCard');
   section.addWidget(CardService.newTextButton()
-      .setText(t(lang, 'scanDocument'))
-      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-      .setOnClickAction(scanAction));
-
-  let settingsAction = CardService.newAction().setFunctionName('buildSettingsCard');
-  section.addWidget(CardService.newTextButton()
-      .setText(`⚙️ ${t(lang, 'settings')}`)
+      .setText(`⚙️ ${t('manageAllSettings')}`)
       .setOnClickAction(settingsAction));
 
   builder.addSection(section);
   return builder.build();
 }
 
-// 2. Settings UI: Let users save their own Config
+// Settings UI: Centralized hub for all tool configurations
 export function buildSettingsCard(e: any) {
-  const lang = getLanguage();
-  let props = PropertiesService.getUserProperties();
-  let token = props.getProperty('TODOIST_TOKEN') || '';
-  let projectId = props.getProperty('TODOIST_PROJECT_ID') || '';
-  let isEnabled = props.getProperty('TODOIST_ENABLED') === 'true';
-  let peopleConfigRaw = props.getProperty('PEOPLE_CONFIG') || JSON.stringify({}, null, 2);
-  let language = props.getProperty('LANGUAGE') || 'en';
+  // Global Settings
+  let language = getLanguage();
 
   let builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle(t(lang, 'userSettings')));
+  builder.setHeader(CardService.newCardHeader().setTitle(t('userSettings')));
 
-  let section = CardService.newCardSection();
-
-  section.addWidget(CardService.newTextInput()
-      .setFieldName("todoistToken")
-      .setTitle(t(lang, 'todoistToken'))
-      .setValue(token));
-
-  section.addWidget(CardService.newTextInput()
-      .setFieldName("todoistProjectId")
-      .setTitle(t(lang, 'todoistProjectId'))
-      .setValue(projectId));
-
-  section.addWidget(CardService.newSelectionInput()
-      .setType(CardService.SelectionInputType.CHECK_BOX)
-      .setFieldName("enableTodoist")
-      .addItem(t(lang, 'enableTodoist'), "true", isEnabled));
-
-  section.addWidget(CardService.newSelectionInput()
+  // --- GLOBAL SETTINGS SECTION ---
+  let globalSection = CardService.newCardSection().setHeader(t('globalSettings'));
+  
+  globalSection.addWidget(CardService.newSelectionInput()
       .setType(CardService.SelectionInputType.DROPDOWN)
       .setFieldName("language")
-      .addItem(t('en', 'languageEnglish'), "en", language === 'en')
-      .addItem(t('nl', 'languageDutch'), "nl", language === 'nl'));
+      .setTitle(t('language'))
+      .addItem(t('languageEnglish'), "en", language === 'en')
+      .addItem(t('languageDutch'), "nl", language === 'nl'));
 
-  // People config: editable JSON mapping (stored in user properties)
-  section.addWidget(CardService.newTextParagraph().setText(t(lang, 'peopleConfigHelp')));
-  section.addWidget(CardService.newTextInput()
-      .setFieldName('peopleConfig')
-      .setTitle(t(lang, 'peopleConfigLabel'))
-      .setValue(peopleConfigRaw)
-      .setMultiline(true));
-
-  let saveAction = CardService.newAction().setFunctionName('saveSettings');
-  section.addWidget(CardService.newTextButton()
-      .setText(t(lang, 'saveSettings'))
+  let saveGlobalAction = CardService.newAction().setFunctionName('saveGlobalSettings');
+  globalSection.addWidget(CardService.newTextButton()
+      .setText(t('saveSettings'))
       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-      .setOnClickAction(saveAction));
+      .setOnClickAction(saveGlobalAction));
 
-  let backAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
-  section.addWidget(CardService.newTextButton()
-      .setText(t(lang, 'backToMenu'))
+  builder.addSection(globalSection);
+
+  // --- TOOL SETTINGS SECTION ---
+  let toolSection = CardService.newCardSection().setHeader(t('toolSettings'));
+
+  toolSection.addWidget(CardService.newTextButton()
+      .setText(getToolTitle('actionPoints'))
+      .setOnClickAction(CardService.newAction().setFunctionName('buildActionPointsSettingsCard')));
+
+  toolSection.addWidget(CardService.newTextButton()
+      .setText(getToolTitle('committees'))
+      .setOnClickAction(CardService.newAction().setFunctionName('buildCommitteeSettingsCard')));
+
+  toolSection.addWidget(CardService.newTextButton()
+      .setText(t('driveCommentsViewerTitle'))
+      .setOnClickAction(CardService.newAction().setFunctionName('buildDriveCommentsSettingsCard')));
+
+  builder.addSection(toolSection);
+
+  // --- NAVIGATION SECTION ---
+  let navSection = CardService.newCardSection();
+  let backAction = CardService.newAction().setFunctionName('onHomepage');
+  navSection.addWidget(CardService.newTextButton()
+      .setText(t('back'))
       .setOnClickAction(backAction));
 
-  builder.addSection(section);
+  builder.addSection(navSection);
+
   return builder.build();
 }
 
-// 3. Save Settings Handler
-export function saveSettings(e: any) {
-  const lang = getLanguage();
+// Save Global Settings Handler
+export function saveGlobalSettings(e: any) {
   let formInputs = e.formInput;
-  let props = PropertiesService.getUserProperties();
-
-  props.setProperty('TODOIST_TOKEN', formInputs.todoistToken || '');
-  props.setProperty('TODOIST_PROJECT_ID', formInputs.todoistProjectId || '');
-
-  // If the checkbox is unchecked, it won't appear in formInputs
-  let isEnabled = formInputs.enableTodoist ? 'true' : 'false';
-  props.setProperty('TODOIST_ENABLED', isEnabled);
-
   if (formInputs.language) {
-    props.setProperty('LANGUAGE', formInputs.language === 'nl' ? 'nl' : 'en');
-  }
-
-  // Save people config JSON if present and valid; otherwise keep existing
-  if (formInputs.peopleConfig) {
-    try {
-      const parsed = JSON.parse(formInputs.peopleConfig);
-      const validation = validatePeopleConfig(parsed);
-      if (!validation.ok) {
-        return createMessageCard(t(lang, 'invalidSettings'), validation.message || '');
-      }
-      props.setProperty('PEOPLE_CONFIG', JSON.stringify(parsed, null, 2));
-    } catch (err) {
-      return createMessageCard(t(lang, 'invalidSettings'), t(lang, 'invalidPeopleJson'));
-    }
+    setLanguage(formInputs.language);
   }
 
   return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText(t(lang, 'settingsSaved')))
-      .setNavigation(CardService.newNavigation().popToRoot().updateCard(onActionPointsHomepage(e)))
+      .setNotification(CardService.newNotification().setText(t('settingsSaved')))
+      .setNavigation(CardService.newNavigation().popToRoot().updateCard(onHomepage(e)))
       .build();
 }
 
 // Helper: Simple message screens
 export function createMessageCard(title: string, message: string) {
-  const lang = getLanguage();
   let builder = CardService.newCardBuilder();
   builder.setHeader(CardService.newCardHeader().setTitle(title));
   let section = CardService.newCardSection();
   section.addWidget(CardService.newTextParagraph().setText(message));
 
-  let backAction = CardService.newAction().setFunctionName('onActionPointsHomepage');
-  section.addWidget(CardService.newTextButton().setText(t(lang, 'backToMenu')).setOnClickAction(backAction));
+  let backAction = CardService.newAction().setFunctionName('onHomepage');
+  section.addWidget(CardService.newTextButton().setText(t('back')).setOnClickAction(backAction));
 
   builder.addSection(section);
   return builder.build();

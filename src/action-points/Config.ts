@@ -26,9 +26,9 @@ export function buildAliasLookup(peopleConfig: Record<string, any>) {
   return lookup;
 }
 
-export function resolveAssignees(namePart: string, peopleConfig: Record<string, any>, aliasLookup: Record<string, string>, lang: string) {
+export function resolveAssignees(namePart: string, peopleConfig: Record<string, any>, aliasLookup: Record<string, string>) {
   const key = namePart.toLowerCase();
-  const everyoneKey = t(lang || 'en', 'everyoneKeyword');
+  const everyoneKey = t('everyoneKeyword');
   if (key === everyoneKey.toLowerCase()) {
     const people = Object.keys(peopleConfig || {});
     if (people.length > 0) return people;

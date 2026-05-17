@@ -1,4 +1,4 @@
-import { COMMITTEE_CONFIG } from './CommitteeConfig';
+import { COMMITTEE_CONFIG } from './Config';
 
 /**
  * Generates a unique filename within the target folder to prevent conflicts.

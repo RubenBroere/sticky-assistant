@@ -1,4 +1,4 @@
-export const BRANDING = {
+export const BRANDING : Record<string, any> = {
   appName: "Sticky Assistant",
   primaryColor: "#FA6B20",
   tools: {
@@ -9,6 +9,10 @@ export const BRANDING = {
     committees: {
       label: "Committees",
       accentColor: "#FA6B20"
+    },
+    driveComments: {
+      label: "Drive Comments",
+      accentColor: "#FA6B20"
     }
   }
 };
@@ -18,13 +22,13 @@ export function getAppName() {
 }
 
 export function getToolTitle(toolKey: string) {
-  const tool = (BRANDING.tools as any)[toolKey];
+  const tool = BRANDING.tools[toolKey];
   const label = tool && tool.label ? tool.label : toolKey;
   return BRANDING.appName + " - " + label;
 }
 
 export function getToolAccent(toolKey: string) {
-  const tool = (BRANDING.tools as any)[toolKey];
+  const tool = BRANDING.tools[toolKey];
   return tool && tool.accentColor ? tool.accentColor : BRANDING.primaryColor;
 }
 

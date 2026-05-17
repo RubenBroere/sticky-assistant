@@ -1,10 +1,9 @@
-import { getLanguage, t } from '../core/Locale';
+import { t } from '../core/Locale';
 import { createMessageCard } from '../core/Ui';
-import { getPeopleConfig, buildAliasLookup, validatePeopleConfig, getOrderForPerson } from './ActionPointsConfig';
+import { getPeopleConfig, buildAliasLookup, validatePeopleConfig, getOrderForPerson } from './Config';
 
 // Apply document changes: add to top and/or replace aliases in-place
 export function applyDocumentActions(e: any) {
-  const lang = getLanguage();
   const params = e.parameters || {};
   const form = e.formInput || {};
   const matchesJson = params.matchesJson || '{}';
@@ -12,7 +11,7 @@ export function applyDocumentActions(e: any) {
   try {
     parsed = JSON.parse(matchesJson);
   } catch (err) {
-    return createMessageCard(t(lang, 'error'), 'Could not read match data.');
+    return createMessageCard(t('error'), 'Could not read match data.');
   }
 
   function isChecked(value: any, expected: string) {
@@ -26,7 +25,7 @@ export function applyDocumentActions(e: any) {
   const replaceInPlace = isChecked(actionsRaw, 'replaceInPlace') || isChecked(form.replaceInPlaceAction, 'replaceInPlace');
 
   const doc = DocumentApp.getActiveDocument();
-  if (!doc) return createMessageCard(t(lang, 'error'), 'No active document.');
+  if (!doc) return createMessageCard(t('error'), 'No active document.');
   const body = doc.getBody();
 
   function formatActionPoint(nameText: string, actionText: string, dateText: string | null) {
@@ -144,7 +143,7 @@ export function applyDocumentActions(e: any) {
     });
 
     // Insert header and items at top as bold bullet list
-    body.insertParagraph(0, t(lang, 'actionPointsHeader')).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.insertParagraph(0, t('actionPointsHeader')).setHeading(DocumentApp.ParagraphHeading.HEADING2);
     for (let i = expanded.length - 1; i >= 0; i--) {
       const item = expanded[i];
       const text = formatActionPoint(item.person, item.action, item.date);
@@ -154,22 +153,21 @@ export function applyDocumentActions(e: any) {
     }
   }
 
-  return createMessageCard(t(lang, 'done'), t(lang, 'docUpdatesApplied'));
+  return createMessageCard(t('done'), t('docUpdatesApplied'));
 }
 
 export function populatePeopleConfig(e: any) {
-  const lang = getLanguage();
   const params = e.parameters || {};
   const peopleJson = params.peopleJson || '[]';
   let people: any[];
   try {
     people = JSON.parse(peopleJson);
   } catch (err) {
-    return createMessageCard(t(lang, 'error'), t(lang, 'peopleListError'));
+    return createMessageCard(t('error'), t('peopleListError'));
   }
 
   if (!Array.isArray(people) || people.length === 0) {
-    return createMessageCard(t(lang, 'done'), t(lang, 'noPeopleToAdd'));
+    return createMessageCard(t('done'), t('noPeopleToAdd'));
   }
 
   const props = PropertiesService.getUserProperties();
@@ -189,10 +187,10 @@ export function populatePeopleConfig(e: any) {
 
   const validation = validatePeopleConfig(current);
   if (!validation.ok) {
-    return createMessageCard(t(lang, 'invalidSettings'), validation.message || '');
+    return createMessageCard(t('invalidSettings'), validation.message || '');
   }
 
   props.setProperty('PEOPLE_CONFIG', JSON.stringify(current, null, 2));
-  const msg = added > 0 ? t(lang, 'addedPeople', { count: added }) : t(lang, 'noNewPeople');
-  return createMessageCard(t(lang, 'done'), msg);
+  const msg = added > 0 ? t('addedPeople', { count: added }) : t('noNewPeople');
+  return createMessageCard(t('done'), msg);
 }
