@@ -1,13 +1,13 @@
-// Todoist-related logic extracted from Code.js
+import { createMessageCard } from '../core/Ui';
 
-function formatDateForTodoist(ddmmyyyy) {
+export function formatDateForTodoist(ddmmyyyy: string) {
   if (!ddmmyyyy) return null;
   const parts = ddmmyyyy.split('-');
   if (parts.length !== 3) return null;
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-function sendToTodoist(e) {
+export function sendToTodoist(e: any) {
   const tasks = JSON.parse(e.parameters.tasksJson);
   let props = PropertiesService.getUserProperties();
   const token = props.getProperty('TODOIST_TOKEN');
@@ -20,9 +20,9 @@ function sendToTodoist(e) {
   let successCount = 0;
   const url = 'https://api.todoist.com/rest/v2/tasks';
   
-  tasks.forEach(task => {
+  tasks.forEach((task: any) => {
     const content = `${task.person}: ${task.action}`;
-    let payloadObj = { content: content, project_id: projectId };
+    let payloadObj: any = { content: content, project_id: projectId };
 
     if (task.date) {
       const formatted = formatDateForTodoist(task.date);
@@ -30,7 +30,7 @@ function sendToTodoist(e) {
     }
 
     const options = {
-      method: 'post',
+      method: 'post' as GoogleAppsScript.URL_Fetch.HttpMethod,
       headers: {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json'

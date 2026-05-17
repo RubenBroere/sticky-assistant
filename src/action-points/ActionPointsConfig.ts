@@ -1,4 +1,6 @@
-function getPeopleConfig() {
+import { t } from '../core/Locale';
+
+export function getPeopleConfig() {
   const props = PropertiesService.getUserProperties();
   const raw = props.getProperty('PEOPLE_CONFIG');
   if (!raw) return {};
@@ -9,13 +11,13 @@ function getPeopleConfig() {
   }
 }
 
-function buildAliasLookup(peopleConfig) {
-  const lookup = {};
+export function buildAliasLookup(peopleConfig: Record<string, any>) {
+  const lookup: Record<string, string> = {};
   Object.keys(peopleConfig || {}).forEach(personName => {
     const entry = peopleConfig[personName] || {};
     lookup[personName.toLowerCase()] = personName;
     const aliases = Array.isArray(entry.aliases) ? entry.aliases : [];
-    aliases.forEach(alias => {
+    aliases.forEach((alias: string) => {
       if (alias && typeof alias === 'string') {
         lookup[alias.toLowerCase()] = personName;
       }
@@ -24,7 +26,7 @@ function buildAliasLookup(peopleConfig) {
   return lookup;
 }
 
-function resolveAssignees(namePart, peopleConfig, aliasLookup, lang) {
+export function resolveAssignees(namePart: string, peopleConfig: Record<string, any>, aliasLookup: Record<string, string>, lang: string) {
   const key = namePart.toLowerCase();
   const everyoneKey = t(lang || 'en', 'everyoneKeyword');
   if (key === everyoneKey.toLowerCase()) {
@@ -35,13 +37,13 @@ function resolveAssignees(namePart, peopleConfig, aliasLookup, lang) {
   return person ? [person] : [namePart];
 }
 
-function getOrderForPerson(personName, peopleConfig) {
+export function getOrderForPerson(personName: string, peopleConfig: Record<string, any>) {
   const entry = peopleConfig[personName] || {};
   if (typeof entry.order === 'number') return entry.order;
   return null;
 }
 
-function validatePeopleConfig(config) {
+export function validatePeopleConfig(config: any) {
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
     return { ok: false, message: 'People Config must be a JSON object.' };
   }

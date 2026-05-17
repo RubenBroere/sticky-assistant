@@ -1,3 +1,7 @@
+import { getToolTitle, getToolAccent } from '../core/Branding';
+import { COMMITTEE_CONFIG } from './CommitteeConfig';
+import { getLanguage, t } from '../core/Locale';
+
 /**
  * Creates the initial card that prompts the user to scan the selected folder.
  *
@@ -5,7 +9,7 @@
  * @param {string} folderId - The ID of the selected folder.
  * @return {CardService.Card} The UI card for the analyze step.
  */
-function createCommitteeAnalyzeCard(folderName, folderId) {
+export function createCommitteeAnalyzeCard(folderName: string, folderId: string) {
   const lang = getLanguage();
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
@@ -36,7 +40,7 @@ function createCommitteeAnalyzeCard(folderName, folderId) {
  * @param {boolean} isInfo - If true, treats as info/neutral. If false, treats as error.
  * @return {CardService.Card} The constructed card.
  */
-function createCommitteeMessageCard(message, isInfo = true) {
+export function createCommitteeMessageCard(message: string, isInfo: boolean = true) {
   const lang = getLanguage();
   const icon = isInfo ? COMMITTEE_CONFIG.ICONS.INFO : COMMITTEE_CONFIG.ICONS.ERROR;
   const title = isInfo ? getToolTitle('committees') : t(lang, "committeeErrorTitle");

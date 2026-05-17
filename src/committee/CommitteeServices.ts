@@ -1,8 +1,11 @@
+import { COMMITTEE_CONFIG } from './CommitteeConfig';
+import { getUniqueFileName, getOrCreateFolder, transformText } from './CommitteeUtils';
+
 /**
  * Core cloning logic for a single committee.
  * Copies active content and creates a fresh template backup.
  */
-function processCommitteeCloning(sourceTemplate, destFolder, analysis, fileMap) {
+export function processCommitteeCloning(sourceTemplate: GoogleAppsScript.Drive.Folder, destFolder: GoogleAppsScript.Drive.Folder, analysis: any, fileMap: Record<string, string>) {
   console.log("Copying active content for " + destFolder.getName() + "...");
   copyFolderContents(sourceTemplate, destFolder, true, analysis, fileMap);
 
@@ -14,7 +17,7 @@ function processCommitteeCloning(sourceTemplate, destFolder, analysis, fileMap) 
 /**
  * Recursive scanner to identify committee structure.
  */
-function scanForCommittees(rootFolder) {
+export function scanForCommittees(rootFolder: GoogleAppsScript.Drive.Folder) {
   const templates = rootFolder.getFoldersByName(COMMITTEE_CONFIG.TEMPLATE_NAME);
   if (templates.hasNext()) {
     return {
@@ -50,7 +53,7 @@ function scanForCommittees(rootFolder) {
  * @param {Object} analysis - The year pattern analysis object.
  * @param {Object} [fileMap=null] - Optional map to track {oldId: newId} for link fixing.
  */
-function copyFolderContents(source, target, shouldTransform, analysis, fileMap = null) {
+export function copyFolderContents(source: GoogleAppsScript.Drive.Folder, target: GoogleAppsScript.Drive.Folder, shouldTransform: boolean, analysis: any, fileMap: Record<string, string> | null = null) {
   const files = source.getFiles();
   while (files.hasNext()) {
     const file = files.next();
@@ -65,7 +68,7 @@ function copyFolderContents(source, target, shouldTransform, analysis, fileMap =
       fileMap[file.getId()] = copiedFile.getId();
     }
 
-    if (shouldTransform && file.getMimeType() === MimeType.GOOGLE_DOCS) {
+    if (shouldTransform && file.getMimeType() === (MimeType as any).GOOGLE_DOCS) {
       editDocContent(copiedFile.getId(), analysis);
     }
   }
@@ -87,20 +90,20 @@ function copyFolderContents(source, target, shouldTransform, analysis, fileMap =
  * @param {string} docId - The ID of the document to edit.
  * @param {Object} analysis - The year pattern analysis object.
  */
-function editDocContent(docId, analysis) {
+export function editDocContent(docId: string, analysis: any) {
   try {
     const doc = DocumentApp.openById(docId);
     const body = doc.getBody();
 
     // Helper to escape regex special chars in the placeholder
-    const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.FULL), analysis.nextFull);
     body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.Y1), analysis.nextY1);
     body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.Y2), analysis.nextY2);
 
     doc.saveAndClose();
-  } catch (e) {
+  } catch (e: any) {
     console.warn("Could not edit doc: " + docId, e);
   }
 }
@@ -111,7 +114,7 @@ function editDocContent(docId, analysis) {
  *
  * @param {Object} fileMap - Mapping of {oldFileId: newFileId}.
  */
-function updateDocLinks(fileMap) {
+export function updateDocLinks(fileMap: Record<string, string>) {
   if (!fileMap || Object.keys(fileMap).length === 0) return;
 
   const newIds = Object.values(fileMap);

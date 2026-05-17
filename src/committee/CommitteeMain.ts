@@ -1,3 +1,10 @@
+import { getToolTitle, getToolAccent } from '../core/Branding';
+import { getLanguage, t } from '../core/Locale';
+import { COMMITTEE_CONFIG } from './CommitteeConfig';
+import { createCommitteeMessageCard, createCommitteeAnalyzeCard } from './CommitteeUi';
+import { analyzeFolderName, transformText, getOrCreateFolder } from './CommitteeUtils';
+import { scanForCommittees, processCommitteeCloning, updateDocLinks } from './CommitteeServices';
+
 /**
  * Entry point for the committee tool homepage.
  * Displays a welcome message and instructions.
@@ -5,7 +12,7 @@
  * @param {Object} e - The event object.
  * @return {CardService.Card} The homepage card.
  */
-function onCommitteeHomepage(e) {
+export function onCommitteeHomepage(e: any) {
   const lang = getLanguage();
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
@@ -40,7 +47,7 @@ function onCommitteeHomepage(e) {
  * @param {Object} e - The event object context from the Drive selection.
  * @return {CardService.Card} The UI card to display.
  */
-function onDriveSelection(e) {
+export function onDriveSelection(e: any) {
   const lang = getLanguage();
   // Guard clause for invalid event object
   if (!e || !e.drive || !e.drive.selectedItems) {
@@ -57,7 +64,7 @@ function onDriveSelection(e) {
   }
 
   const item = items[0];
-  if (item.mimeType !== MimeType.FOLDER) {
+  if (item.mimeType !== (MimeType as any).FOLDER) {
     return createCommitteeMessageCard(t(lang, "committeeNotFolder"), false);
   }
 
@@ -71,7 +78,7 @@ function onDriveSelection(e) {
  * @param {Object} e - The event object.
  * @return {CardService.Card} The UI card displaying the scan results or an error.
  */
-function runScan(e) {
+export function runScan(e: any) {
   const lang = getLanguage();
   const sourceId = e.parameters.sourceId;
   const folderName = e.parameters.folderName;
@@ -143,7 +150,7 @@ function runScan(e) {
  * @param {Object} e - The event object.
  * @return {CardService.Card} The success or error card.
  */
-function runExecution(e) {
+export function runExecution(e: any) {
   const lang = getLanguage();
   console.log("Started execution", JSON.stringify(e.parameters));
   const sourceId = e.parameters.sourceId;
@@ -190,7 +197,7 @@ function runExecution(e) {
     updateDocLinks(fileMap);
 
     // Return success card
-    return CardService.newActionResponseBuilder()
+    return (CardService as any).newActionResponseBuilder()
       .setNotification(CardService.newNotification().setText(t(lang, "committeeSuccessCreated", { name: newRootName })))
       .setNavigation(CardService.newNavigation().updateCard(
         CardService.newCardBuilder()
@@ -219,7 +226,7 @@ function runExecution(e) {
       ))
       .build();
 
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
     return createCommitteeMessageCard(t(lang, "committeeErrorPrefix", { error: err.toString() }), false);
   }
@@ -228,6 +235,6 @@ function runExecution(e) {
 /**
  * Placeholder function for OAuth scope authorization.
  */
-function setupAuth() {
+export function setupAuth() {
   console.log("Auth check verified");
 }

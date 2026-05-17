@@ -1,5 +1,9 @@
+import { getLanguage, t } from '../core/Locale';
+import { createMessageCard } from '../core/Ui';
+import { getPeopleConfig, buildAliasLookup, resolveAssignees, getOrderForPerson } from './ActionPointsConfig';
+
 // 4. Scan Document Logic (Now separates Open and Completed)
-function scanDocument(e) {
+export function scanDocument(e: any) {
   const lang = getLanguage();
   const doc = DocumentApp.getActiveDocument();
   if (!doc) return createMessageCard(t(lang, 'error'), t(lang, 'noDoc'));
@@ -7,11 +11,11 @@ function scanDocument(e) {
   const body = doc.getBody();
   const numChildren = body.getNumChildren();
 
-  let openTasks = [];
-  let completedTasks = [];
-  let openMatches = [];
-  let completedMatches = [];
-  let foundPeople = {};
+  let openTasks: any[] = [];
+  let completedTasks: any[] = [];
+  let openMatches: any[] = [];
+  let completedMatches: any[] = [];
+  let foundPeople: Record<string, boolean> = {};
   const peopleConfig = getPeopleConfig();
   const aliasLookup = buildAliasLookup(peopleConfig);
   const dateRegex = /\[(\d{2}-\d{2}-\d{4})\]/;
@@ -22,13 +26,13 @@ function scanDocument(e) {
     const type = child.getType();
 
     if (type === DocumentApp.ElementType.PARAGRAPH || type === DocumentApp.ElementType.LIST_ITEM) {
-      const text = child.getText();
+      const text = (child as any).getText();
       let match;
 
       const regex = /\bAP\s+([^:]+):\s+(.+)/gi;
 
       while ((match = regex.exec(text)) !== null) {
-        const textElement = child.editAsText();
+        const textElement = (child as any).editAsText();
 
         // Check if both the "A" and the "P" are explicitly bolded
         const isBold = textElement.isBold(match.index) && textElement.isBold(match.index + 1);
@@ -96,7 +100,7 @@ function scanDocument(e) {
   }
 
   // E. Sort the arrays alphabetically
-  function sortByOrderThenName(a, b) {
+  function sortByOrderThenName(a: any, b: any) {
     const orderA = (typeof a.order === 'number') ? a.order : Number.MAX_SAFE_INTEGER;
     const orderB = (typeof b.order === 'number') ? b.order : Number.MAX_SAFE_INTEGER;
     if (orderA !== orderB) return orderA - orderB;

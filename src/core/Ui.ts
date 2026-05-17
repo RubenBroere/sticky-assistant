@@ -1,9 +1,13 @@
+import { getAppName, getToolTitle, getToolAccent } from './Branding';
+import { getLanguage, t } from './Locale';
+import { validatePeopleConfig } from '../action-points/ActionPointsConfig';
+
 // 1. Homepage: Shows the tool selector
-function onHomepage(e) {
+export function onHomepage(e: any) {
   return buildToolSelectorCard(e);
 }
 
-function buildToolSelectorCard(e) {
+export function buildToolSelectorCard(e: any) {
   const lang = getLanguage();
   const builder = CardService.newCardBuilder();
   builder.setHeader(CardService.newCardHeader().setTitle(getAppName()));
@@ -29,7 +33,7 @@ function buildToolSelectorCard(e) {
 }
 
 // 2. Action Points: Shows the main menu
-function onActionPointsHomepage(e) {
+export function onActionPointsHomepage(e: any) {
   const lang = getLanguage();
   let builder = CardService.newCardBuilder();
   builder.setHeader(CardService.newCardHeader().setTitle(getToolTitle('actionPoints')));
@@ -52,7 +56,7 @@ function onActionPointsHomepage(e) {
 }
 
 // 2. Settings UI: Let users save their own Config
-function buildSettingsCard(e) {
+export function buildSettingsCard(e: any) {
   const lang = getLanguage();
   let props = PropertiesService.getUserProperties();
   let token = props.getProperty('TODOIST_TOKEN') || '';
@@ -111,7 +115,7 @@ function buildSettingsCard(e) {
 }
 
 // 3. Save Settings Handler
-function saveSettings(e) {
+export function saveSettings(e: any) {
   const lang = getLanguage();
   let formInputs = e.formInput;
   let props = PropertiesService.getUserProperties();
@@ -133,7 +137,7 @@ function saveSettings(e) {
       const parsed = JSON.parse(formInputs.peopleConfig);
       const validation = validatePeopleConfig(parsed);
       if (!validation.ok) {
-        return createMessageCard(t(lang, 'invalidSettings'), validation.message);
+        return createMessageCard(t(lang, 'invalidSettings'), validation.message || '');
       }
       props.setProperty('PEOPLE_CONFIG', JSON.stringify(parsed, null, 2));
     } catch (err) {
@@ -148,7 +152,7 @@ function saveSettings(e) {
 }
 
 // Helper: Simple message screens
-function createMessageCard(title, message) {
+export function createMessageCard(title: string, message: string) {
   const lang = getLanguage();
   let builder = CardService.newCardBuilder();
   builder.setHeader(CardService.newCardHeader().setTitle(title));

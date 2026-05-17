@@ -1,7 +1,7 @@
 /**
  * Configuration for the committee tool, defining placeholder patterns and folder names.
  */
-const COMMITTEE_CONFIG = {
+export const COMMITTEE_CONFIG = {
   TEMPLATE_NAME: "Template",
   PLACEHOLDERS: {
     FULL: "[YEAR]",
@@ -15,10 +15,11 @@ const COMMITTEE_CONFIG = {
   },
   ICONS: {
     FOLDER: CardService.Icon.DESCRIPTION,
+    DESCRIPTION: CardService.Icon.DESCRIPTION,
     CLOCK: CardService.Icon.CLOCK,
     CHECK: CardService.Icon.CONFIRMATION_NUMBER_ICON,
     ERROR: CardService.Icon.OFFER,
     INFO: CardService.Icon.BOOKMARK,
-    MAGIC: CardService.Icon.STARS
+    MAGIC: CardService.Icon.STAR
   }
 };

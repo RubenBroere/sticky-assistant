@@ -1,5 +1,9 @@
+import { getLanguage, t } from '../core/Locale';
+import { createMessageCard } from '../core/Ui';
+import { getPeopleConfig, buildAliasLookup, validatePeopleConfig, getOrderForPerson } from './ActionPointsConfig';
+
 // Apply document changes: add to top and/or replace aliases in-place
-function applyDocumentActions(e) {
+export function applyDocumentActions(e: any) {
   const lang = getLanguage();
   const params = e.parameters || {};
   const form = e.formInput || {};
@@ -11,7 +15,7 @@ function applyDocumentActions(e) {
     return createMessageCard(t(lang, 'error'), 'Could not read match data.');
   }
 
-  function isChecked(value, expected) {
+  function isChecked(value: any, expected: string) {
     if (Array.isArray(value)) return value.indexOf(expected) !== -1;
     if (typeof value === 'string') return value.split(',').map(s => s.trim()).indexOf(expected) !== -1;
     return false;
@@ -25,15 +29,15 @@ function applyDocumentActions(e) {
   if (!doc) return createMessageCard(t(lang, 'error'), 'No active document.');
   const body = doc.getBody();
 
-  function formatActionPoint(nameText, actionText, dateText) {
+  function formatActionPoint(nameText: string, actionText: string, dateText: string | null) {
     const dateSuffix = dateText ? ` [${dateText}]` : '';
     return `AP ${nameText}: ${actionText}${dateSuffix}`;
   }
 
   // Helper to perform in-place replacements. Process by child index descending.
-  function doReplace(matches, isOpen) {
+  function doReplace(matches: any[], isOpen: boolean) {
     // Group matches by childIndex
-    const groups = {};
+    const groups: Record<number, any[]> = {};
     matches.forEach(m => {
       if (!groups[m.location.childIndex]) groups[m.location.childIndex] = [];
       groups[m.location.childIndex].push(m);
@@ -47,7 +51,7 @@ function applyDocumentActions(e) {
       const listItem = isListItem ? child.asListItem() : null;
       const glyphType = listItem ? listItem.getGlyphType() : null;
       const nestingLevel = listItem ? listItem.getNestingLevel() : null;
-      const textElement = child.editAsText();
+      const textElement = (child as any).editAsText();
       // Sort matches within child by matchIndex desc
       const items = groups[childIndex].sort((a, b) => b.location.matchIndex - a.location.matchIndex);
       for (let i = 0; i < items.length; i++) {
@@ -55,7 +59,7 @@ function applyDocumentActions(e) {
         let start = m.location.matchIndex;
         let end = start + m.location.matchLength - 1;
         // Validate indices, otherwise try to find originalText
-        const fullText = child.getText();
+        const fullText = (child as any).getText();
         if (start < 0 || end >= fullText.length || fullText.substr(start, m.location.matchLength) !== m.originalText) {
           const found = fullText.indexOf(m.originalText);
           if (found !== -1) {
@@ -120,10 +124,10 @@ function applyDocumentActions(e) {
   if (addToTop) {
     // Build list from open matches only (formatted and ordered)
     const openMatches = parsed.open || [];
-    let expanded = [];
+    let expanded: any[] = [];
     const peopleConfig = getPeopleConfig();
-    openMatches.forEach(m => {
-      m.assignees.forEach(a => {
+    openMatches.forEach((m: any) => {
+      m.assignees.forEach((a: any) => {
         expanded.push({
           person: a,
           action: m.action,
@@ -153,11 +157,11 @@ function applyDocumentActions(e) {
   return createMessageCard(t(lang, 'done'), t(lang, 'docUpdatesApplied'));
 }
 
-function populatePeopleConfig(e) {
+export function populatePeopleConfig(e: any) {
   const lang = getLanguage();
   const params = e.parameters || {};
   const peopleJson = params.peopleJson || '[]';
-  let people;
+  let people: any[];
   try {
     people = JSON.parse(peopleJson);
   } catch (err) {
@@ -185,7 +189,7 @@ function populatePeopleConfig(e) {
 
   const validation = validatePeopleConfig(current);
   if (!validation.ok) {
-    return createMessageCard(t(lang, 'invalidSettings'), validation.message);
+    return createMessageCard(t(lang, 'invalidSettings'), validation.message || '');
   }
 
   props.setProperty('PEOPLE_CONFIG', JSON.stringify(current, null, 2));

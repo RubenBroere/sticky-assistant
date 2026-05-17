@@ -1,0 +1,14 @@
+**/*.spec.ts
+**/*.test.ts
+node_modules/
+package.json
+package-lock.json
+tsconfig.json
+rollup.config.mjs
+vitest.config.ts
+src/
+scripts/
+README.md
+.gitignore
+.clasp.json
+.clasp.json.template

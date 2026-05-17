@@ -1,3 +1,5 @@
+import { COMMITTEE_CONFIG } from './CommitteeConfig';
+
 /**
  * Generates a unique filename within the target folder to prevent conflicts.
  * Appends " (n)" to the filename if it already exists.
@@ -6,7 +8,7 @@
  * @param {string} name - The desired filename.
  * @return {string} A unique filename.
  */
-function getUniqueFileName(folder, name) {
+export function getUniqueFileName(folder: GoogleAppsScript.Drive.Folder, name: string) {
   if (!folder.getFilesByName(name).hasNext()) return name;
 
   let nameBase = name;
@@ -33,7 +35,7 @@ function getUniqueFileName(folder, name) {
  * @param {string} name - The folder name to analyze.
  * @return {Object} Analysis result containing found status, current patterns, and next cycle targets.
  */
-function analyzeFolderName(name) {
+export function analyzeFolderName(name: string) {
   const matchDouble = name.match(COMMITTEE_CONFIG.REGEX.DOUBLE_YEAR);
   if (matchDouble) {
     const y1 = parseInt(matchDouble[1]);
@@ -59,7 +61,7 @@ function analyzeFolderName(name) {
       nextY2: "" + (y1 + 1)
     };
   }
-  return { found: false };
+  return { found: false } as any;
 }
 
 /**
@@ -69,7 +71,7 @@ function analyzeFolderName(name) {
  * @param {string} name - The name of the folder to retrieve or create.
  * @return {GoogleAppsScript.Drive.Folder} The requested folder.
  */
-function getOrCreateFolder(parent, name) {
+export function getOrCreateFolder(parent: GoogleAppsScript.Drive.Folder, name: string) {
   const folders = parent.getFoldersByName(name);
   if (folders.hasNext()) {
     return folders.next();
@@ -84,7 +86,7 @@ function getOrCreateFolder(parent, name) {
  * @param {Object} analysis - The analysis object containing replacement values.
  * @return {string} The transformed text.
  */
-function transformText(text, analysis) {
+export function transformText(text: string, analysis: any) {
   return text.split(COMMITTEE_CONFIG.PLACEHOLDERS.Y1).join(analysis.nextY1)
              .split(COMMITTEE_CONFIG.PLACEHOLDERS.Y2).join(analysis.nextY2)
              .split(COMMITTEE_CONFIG.PLACEHOLDERS.FULL).join(analysis.nextFull);

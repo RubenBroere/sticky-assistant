@@ -1,0 +1,36 @@
+{
+  "name": "sticky-assistant",
+  "version": "1.0.0",
+  "description": "A multi-tool Google Workspace add-on suite for Sticky.",
+  "main": "index.js",
+  "scripts": {
+    "build": "rollup -c rollup.config.mjs && shx cp appsscript.json dist/",
+    "test": "vitest run",
+    "push": "npm run build && clasp push",
+    "watch": "rollup -c rollup.config.mjs -w",
+    "lint": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RubenBroere/sticky-assistant.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/RubenBroere/sticky-assistant/issues"
+  },
+  "homepage": "https://github.com/RubenBroere/sticky-assistant#readme",
+  "devDependencies": {
+    "@google/clasp": "^3.3.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/google-apps-script": "^2.0.8",
+    "rollup": "^4.60.4",
+    "rollup-plugin-gas": "^1.0.0",
+    "shx": "^0.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
+  }
+}

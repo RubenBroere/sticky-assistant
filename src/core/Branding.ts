@@ -1,4 +1,4 @@
-const BRANDING = {
+export const BRANDING = {
   appName: "Sticky Assistant",
   primaryColor: "#FA6B20",
   tools: {
@@ -13,21 +13,21 @@ const BRANDING = {
   }
 };
 
-function getAppName() {
+export function getAppName() {
   return BRANDING.appName;
 }
 
-function getToolTitle(toolKey) {
-  const tool = BRANDING.tools[toolKey];
+export function getToolTitle(toolKey: string) {
+  const tool = (BRANDING.tools as any)[toolKey];
   const label = tool && tool.label ? tool.label : toolKey;
   return BRANDING.appName + " - " + label;
 }
 
-function getToolAccent(toolKey) {
-  const tool = BRANDING.tools[toolKey];
+export function getToolAccent(toolKey: string) {
+  const tool = (BRANDING.tools as any)[toolKey];
   return tool && tool.accentColor ? tool.accentColor : BRANDING.primaryColor;
 }
 
-function getPrimaryColor() {
+export function getPrimaryColor() {
   return BRANDING.primaryColor;
 }

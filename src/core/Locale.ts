@@ -1,4 +1,4 @@
-const I18N = {
+export const I18N = {
   en: {
     toolSelectorTitle: 'Sticky Assistant',
     toolSelectorHelp: 'Choose a tool to start.',
@@ -173,21 +173,21 @@ const I18N = {
   }
 };
 
-function getLanguage() {
+export function getLanguage() {
   const props = PropertiesService.getUserProperties();
   const raw = props.getProperty('LANGUAGE') || 'en';
   return raw === 'nl' ? 'nl' : 'en';
 }
 
-function formatMessage(template, params) {
+export function formatMessage(template: string, params: Record<string, any>) {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (match, key) => {
     return params.hasOwnProperty(key) ? String(params[key]) : match;
   });
 }
 
-function t(lang, key, params) {
-  const dict = I18N[lang] || I18N.en;
-  const value = dict[key] || I18N.en[key] || key;
-  return formatMessage(value, params);
+export function t(lang: string, key: string, params?: Record<string, any>) {
+  const dict = (I18N as any)[lang] || I18N.en;
+  const value = dict[key] || (I18N.en as any)[key] || key;
+  return formatMessage(value, params || {});
 }
