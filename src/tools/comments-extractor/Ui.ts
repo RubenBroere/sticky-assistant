@@ -1,5 +1,3 @@
-import { t } from "../core/Locale";
-
 /**
  * Triggered when a user selects items in Google Drive.
  * Builds the initial sidebar UI.
@@ -9,42 +7,38 @@ export function onDriveItemsSelected(e: any) {
 
   // If nothing is selected, show a prompt
   if (!selectedItems || selectedItems.length === 0) {
-    return buildEmptyCard(t("driveCommentsSelectPdf"));
+    return buildEmptyCard('Select a PDF file to view comments.');
   }
 
   const item = selectedItems[0];
-  const isPdf = item.mimeType === "application/pdf";
+  const isPdf = item.mimeType === 'application/pdf';
 
   // Only proceed if it's a PDF
   if (!isPdf) {
-    return buildEmptyCard(t("driveCommentsUnsupportedType"));
+    return buildEmptyCard('Unsupported file type. Please select a PDF.');
   }
 
   // Build the Card UI
   const card = CardService.newCardBuilder().setHeader(
-    CardService.newCardHeader().setTitle(t("driveCommentsViewerTitle")),
+    CardService.newCardHeader().setTitle('PDF Comment Viewer')
   );
 
   const section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText(`**Selected:** ${item.title}`))
     .addWidget(
       CardService.newTextParagraph().setText(
-        t("driveCommentsSelectedFile", { title: item.title }),
-      ),
-    )
-    .addWidget(
-      CardService.newTextParagraph().setText(t("driveCommentsHelpText")),
+        'Click below to view comments directly in this sidebar.'
+      )
     );
 
   // Create the action that runs when the button is clicked
-  const action = CardService.newAction()
-    .setFunctionName("exportCommentsToSheet")
-    .setParameters({
-      itemId: item.id,
-      itemName: item.title,
-    });
+  const action = CardService.newAction().setFunctionName('exportCommentsToSheet').setParameters({
+    itemId: item.id,
+    itemName: item.title,
+  });
 
   const button = CardService.newTextButton()
-    .setText(t("driveCommentsViewAction"))
+    .setText('View Comments')
     .setOnClickAction(action)
     .setTextButtonStyle(CardService.TextButtonStyle.FILLED);
 
@@ -59,13 +53,9 @@ export function onDriveItemsSelected(e: any) {
  */
 export function buildEmptyCard(text: string) {
   return CardService.newCardBuilder()
-    .setHeader(
-      CardService.newCardHeader().setTitle(t("driveCommentsViewerTitle")),
-    )
+    .setHeader(CardService.newCardHeader().setTitle('PDF Comment Viewer'))
     .addSection(
-      CardService.newCardSection().addWidget(
-        CardService.newTextParagraph().setText(text),
-      ),
+      CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(text))
     )
     .build();
 }
@@ -83,9 +73,7 @@ export function displayCommentsUI(e: any) {
   let totalReplyCount = 0;
 
   const card = CardService.newCardBuilder().setHeader(
-    CardService.newCardHeader()
-      .setTitle(t("driveCommentsViewerTitle"))
-      .setSubtitle(fileName),
+    CardService.newCardHeader().setTitle('PDF Comment Viewer').setSubtitle(fileName)
   );
 
   let section = CardService.newCardSection();
@@ -97,7 +85,7 @@ export function displayCommentsUI(e: any) {
       // Note: We use any here because DriveApp/Drive API types might not be fully loaded in this environment
       const response: any = (Drive as any).Comments.list(fileId, {
         fields:
-          "nextPageToken, comments(id,author/displayName,content,createdTime,replies(author/displayName,content,createdTime))",
+          'nextPageToken, comments(id,author/displayName,content,createdTime,replies(author/displayName,content,createdTime))',
         pageSize: 100,
         pageToken: pageToken,
       });
@@ -107,9 +95,7 @@ export function displayCommentsUI(e: any) {
       if (comments && comments.length > 0) {
         comments.forEach((comment: any) => {
           parentCount++;
-          const authorName = comment.author
-            ? comment.author.displayName
-            : "Unknown";
+          const authorName = comment.author ? comment.author.displayName : 'Unknown';
           const replies = comment.replies || [];
           totalReplyCount += replies.length;
 
@@ -127,16 +113,11 @@ export function displayCommentsUI(e: any) {
 
           // If there are replies, add a button to view them specifically or show a count
           if (replies.length > 0) {
-            commentWidget.setBottomLabel(
-              t("driveCommentsSummary", {
-                parentCount: 0,
-                totalReplyCount: replies.length,
-              }),
-            );
+            commentWidget.setBottomLabel(`0 Threads • ${replies.length} Replies`);
 
             // This action would push a NEW card with just the thread details
             const viewThreadAction = CardService.newAction()
-              .setFunctionName("viewCommentThread")
+              .setFunctionName('viewCommentThread')
               .setParameters({
                 fileId: fileId,
                 commentId: comment.id,
@@ -155,28 +136,18 @@ export function displayCommentsUI(e: any) {
     // Summary Section at the Top
     const summarySection = CardService.newCardSection().addWidget(
       CardService.newDecoratedText()
-        .setText(t("driveCommentsSummaryLabel"))
-        .setBottomLabel(
-          t("driveCommentsSummary", { parentCount, totalReplyCount }),
-        )
-        .setStartIcon(
-          CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION),
-        ),
+        .setText('**Summary**')
+        .setBottomLabel(`${parentCount} Threads \u2022 ${totalReplyCount} Replies`)
+        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
     );
 
     card.addSection(summarySection);
 
     if (parentCount === 0) {
-      section.addWidget(
-        CardService.newTextParagraph().setText(t("driveCommentsNoComments")),
-      );
+      section.addWidget(CardService.newTextParagraph().setText('No comments found.'));
     }
   } catch (error: any) {
-    section.addWidget(
-      CardService.newTextParagraph().setText(
-        t("committeeErrorPrefix", { error: error.message }),
-      ),
-    );
+    section.addWidget(CardService.newTextParagraph().setText(`Error: ${error.message}`));
   }
 
   card.addSection(section);
@@ -194,17 +165,17 @@ export function viewCommentThread(e: any) {
 
   const comment: any = (Drive as any).Comments.get(fileId, commentId, {
     fields:
-      "author/displayName,content,createdTime,replies(author/displayName,content,createdTime)",
+      'author/displayName,content,createdTime,replies(author/displayName,content,createdTime)',
   });
 
   const card = CardService.newCardBuilder().setHeader(
-    CardService.newCardHeader().setTitle(t("driveCommentsThreadTitle")),
+    CardService.newCardHeader().setTitle('Comment Thread')
   );
 
   const section = CardService.newCardSection().addWidget(
     CardService.newDecoratedText()
       .setTopLabel(comment.author.displayName)
-      .setText(`<b>${comment.content}</b>`),
+      .setText(`<b>${comment.content}</b>`)
   );
 
   if (comment.replies) {
@@ -213,7 +184,7 @@ export function viewCommentThread(e: any) {
         CardService.newDecoratedText()
           .setTopLabel(`↳ ${reply.author.displayName}`)
           .setText(reply.content)
-          .setWrapText(true),
+          .setWrapText(true)
       );
     });
   }
@@ -225,19 +196,23 @@ export function viewCommentThread(e: any) {
 /**
  * Drive Comments Settings UI (Placeholder)
  */
-export function buildDriveCommentsSettingsCard(e: any) {
-  let builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle(t('driveCommentsSettings')));
+export function buildDriveCommentsSettingsCard() {
+  const builder = CardService.newCardBuilder();
+  builder.setHeader(CardService.newCardHeader().setTitle('Drive Comments Settings'));
 
-  let section = CardService.newCardSection();
-  section.addWidget(CardService.newTextParagraph().setText(t('driveCommentsHelpText')));
+  const section = CardService.newCardSection();
+  section.addWidget(
+    CardService.newTextParagraph().setText('Click below to view comments directly in this sidebar.')
+  );
   builder.addSection(section);
 
-  let actionSection = CardService.newCardSection();
-  actionSection.addWidget(CardService.newTextButton()
-      .setText(t('back'))
-      .setOnClickAction(CardService.newAction().setFunctionName('buildSettingsCard')));
-  
+  const actionSection = CardService.newCardSection();
+  actionSection.addWidget(
+    CardService.newTextButton()
+      .setText('Back')
+      .setOnClickAction(CardService.newAction().setFunctionName('buildSettingsCard'))
+  );
+
   builder.addSection(actionSection);
   return builder.build();
 }
@@ -245,8 +220,8 @@ export function buildDriveCommentsSettingsCard(e: any) {
 /**
  * Save Drive Comments Settings (Placeholder)
  */
-export function saveDriveCommentsSettings(e: any) {
+export function saveDriveCommentsSettings() {
   return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText(t('settingsSaved')))
-      .build();
+    .setNotification(CardService.newNotification().setText('Settings saved!'))
+    .build();
 }

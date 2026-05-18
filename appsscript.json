@@ -24,19 +24,22 @@
       "layoutProperties": {
         "primaryColor": "#FA6B20",
         "secondaryColor": "#FA6B20"
+      },
+      "homepageTrigger": {
+        "runFunction": "onDefaultHomepage"
       }
     },
     "docs": {
       "homepageTrigger": {
-        "runFunction": "onHomepage"
+        "runFunction": "onDocsHomepage"
       }
     },
     "drive": {
       "homepageTrigger": {
-        "runFunction": "onHomepage"
+        "runFunction": "onDriveHomepage"
       },
       "onItemsSelectedTrigger": {
-        "runFunction": "onDriveSelection"
+        "runFunction": "onItemsSelected"
       }
     }
   },
