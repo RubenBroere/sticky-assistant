@@ -182,10 +182,59 @@ export function saveToolSettings(
       localConfig[toolId] = localConfig[toolId] || {};
 
       if (settingDefs && settingDefs.length > 0) {
+        // Collect secret setting IDs for cleanup
+        const secretKeys = new Set(settingDefs.filter((s) => s.secret).map((s) => s.id));
+
         settingDefs.forEach((s) => {
+          if (s.secret) {
+            delete localConfig[toolId][s.id];
+            return;
+          }
+
           let val = values[s.id];
           if (val === undefined) {
-            val = getToolSettingDefaultValue(s) ?? '';
+            // Do not write undefined settings to workspace layer (prevent default overrides)
+            return;
+          }
+
+          // Check if this is an inherited global setting that matches global exactly
+          try {
+            const props = PropertiesService.getUserProperties();
+            const globalVal = props.getProperty(`${toolId}__${s.id}`);
+            if (globalVal !== null) {
+              let isIdentical = false;
+              if (s.type === 'checkbox') {
+                const globalTyped = globalVal === 'true';
+                isIdentical = (val === true || val === 'true') === globalTyped;
+              } else if (s.type === 'number') {
+                isIdentical = Number(val) === Number(globalVal);
+              } else {
+                // Compare string or JSON representations
+                const valStr = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                if (s.type === 'multiline') {
+                  try {
+                    const p1 = JSON.parse(valStr);
+                    const p2 = JSON.parse(globalVal);
+                    isIdentical = JSON.stringify(p1) === JSON.stringify(p2);
+                  } catch {
+                    isIdentical = valStr === globalVal;
+                  }
+                } else {
+                  isIdentical = valStr === globalVal;
+                }
+              }
+
+              // If it matches global and is not already defined in the workspace config,
+              // skip writing it to the workspace to prevent leakage.
+              if (isIdentical && localConfig[toolId][s.id] === undefined) {
+                return;
+              }
+            }
+          } catch (err) {
+            console.warn(
+              'Could not check global properties for settings identity comparison:',
+              err
+            );
           }
 
           // Automatically parse multiline inputs back to JSON objects if valid
@@ -202,8 +251,27 @@ export function saveToolSettings(
 
           localConfig[toolId][s.id] = s.type === 'checkbox' ? val === true || val === 'true' : val;
         });
+
+        // Proactive cleanup of any secret keys
+        secretKeys.forEach((key) => {
+          if (localConfig[toolId][key] !== undefined) {
+            delete localConfig[toolId][key];
+          }
+        });
       } else {
+        // Fallback: heuristic name filter to block common secret keys
         Object.keys(values).forEach((k) => {
+          const lowerK = k.toLowerCase();
+          if (
+            lowerK.includes('token') ||
+            lowerK.includes('secret') ||
+            lowerK.includes('password') ||
+            lowerK.includes('key') ||
+            lowerK.includes('auth')
+          ) {
+            delete localConfig[toolId][k];
+            return;
+          }
           localConfig[toolId][k] = values[k];
         });
       }
@@ -241,4 +309,14 @@ export function saveToolSettings(
   } catch (err: any) {
     return { ok: false, message: err?.message || String(err) };
   }
+}
+
+/**
+ * Resets the execution-level caches for testing purposes.
+ */
+export function resetSettingsCache(): void {
+  cachedParentFolder = null;
+  cachedParentFolderChecked = false;
+  cachedWorkspaceConfig = null;
+  cachedWorkspaceConfigLoaded = false;
 }
