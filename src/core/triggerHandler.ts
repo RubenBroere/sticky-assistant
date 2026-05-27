@@ -1,6 +1,6 @@
 import { getTools } from '../tools/registry';
 import { Tool, ToolTrigger, TriggerEvent } from './Tool';
-import { getAppName } from './branding';
+import { getAppName, COLORS, ICON_URLS } from './branding';
 
 type TriggerEventObject = GoogleAppsScript.Addons.EventObject & {
   parameters?: Record<string, string>;
@@ -19,6 +19,40 @@ function getMatchingTriggers(event: TriggerEvent, e: GoogleAppsScript.Addons.Eve
     .flatMap((tool: Tool) => tool.triggers.map((trigger) => ({ tool, trigger })))
     .filter(({ trigger }) => trigger.event === event)
     .filter(({ trigger }) => isEnabled(trigger, e));
+}
+
+/**
+ * Dynamically deduces the host app or Drive folder/file selection required for a tool.
+ */
+function getRequiredServiceDescription(tool: Tool): string {
+  // Check if any trigger is Docs homepage
+  const hasDocs = tool.triggers.some(
+    (t) =>
+      t.event === TriggerEvent.DOCS_HOMEPAGE ||
+      (t.enabled && t.enabled({ commonEventObject: { hostApp: 'DOCS' } } as any))
+  );
+  if (hasDocs) return 'Google Docs';
+
+  // Check if any trigger requires specific Drive selection
+  const hasSelectedItems = tool.triggers.some((t) => t.event === TriggerEvent.ITEMS_SELECTED);
+  if (hasSelectedItems) {
+    if (tool.id === 'commentsExtractor') {
+      return 'Google Drive (Select a PDF file)';
+    }
+    if (tool.id === 'committeeCreator') {
+      return 'Google Drive (Select a Folder)';
+    }
+    return 'Google Drive (Select items)';
+  }
+
+  const hasDrive = tool.triggers.some(
+    (t) =>
+      t.event === TriggerEvent.DRIVE_HOMEPAGE ||
+      (t.enabled && t.enabled({ commonEventObject: { hostApp: 'DRIVE' } } as any))
+  );
+  if (hasDrive) return 'Google Drive';
+
+  return 'Google Workspace';
 }
 
 export function openTool(e: TriggerEventObject): GoogleAppsScript.Card_Service.Card {
@@ -40,35 +74,78 @@ export function openTool(e: TriggerEventObject): GoogleAppsScript.Card_Service.C
 
 export function buildToolSelectorCard(e: GoogleAppsScript.Addons.EventObject, event: TriggerEvent) {
   const matches = getMatchingTriggers(event, e);
-  if (matches.length === 1) return matches[0].trigger.createCard(e);
+
+  // Auto-skip selector only when targeted items are selected in Drive (targeted action)
+  if (matches.length === 1 && event === TriggerEvent.ITEMS_SELECTED) {
+    return matches[0].trigger.createCard(e);
+  }
 
   const builder = CardService.newCardBuilder().setHeader(
-    CardService.newCardHeader().setTitle(getAppName())
+    CardService.newCardHeader().setTitle(
+      `<font color="${COLORS.PRIMARY}"><b>${getAppName()}</b></font>`
+    )
   );
 
   const section = CardService.newCardSection().addWidget(
-    CardService.newTextParagraph().setText('Select a tool to get started:')
+    CardService.newDecoratedText()
+      .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.info))
+      .setText('<b>Welcome to Sticky Assistant!</b>')
+      .setBottomLabel('Select a specialized tool to get started:')
+      .setWrapText(true)
   );
 
-  const tools =
-    matches.length > 0
-      ? matches
-      : getTools()
-          .flatMap((tool) => tool.triggers.map((trigger) => ({ tool, trigger })))
-          .filter(({ trigger }) => isEnabled(trigger, e));
-  tools.forEach(({ tool, trigger }) => {
+  // Separate active/available tools from unavailable ones in this context
+  const activeToolIds = new Set(matches.map((m) => m.tool.id));
+  const availableTools = matches;
+  const unavailableTools = getTools().filter((tool) => !activeToolIds.has(tool.id));
+
+  // --- SECTION 1: AVAILABLE TOOLS ---
+  availableTools.forEach(({ tool, trigger }) => {
+    const openAction = CardService.newAction()
+      .setFunctionName('openTool')
+      .setParameters({ toolId: tool.id, event: String(trigger.event) });
+
     section.addWidget(
-      CardService.newKeyValue()
-        .setTopLabel(tool.name)
-        .setIcon(tool.icon)
-        .setOnClickAction(
-          CardService.newAction()
-            .setFunctionName('openTool')
-            .setParameters({ toolId: tool.id, event: String(trigger.event) })
+      CardService.newDecoratedText()
+        .setStartIcon(
+          CardService.newIconImage().setIconUrl(ICON_URLS[tool.id as keyof typeof ICON_URLS] || '')
+        )
+        .setText(`<b>${tool.name}</b>`)
+        .setBottomLabel(tool.info || 'No description available.')
+        .setWrapText(true)
+        .setButton(
+          CardService.newTextButton()
+            .setText('Open')
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setOnClickAction(openAction)
         )
     );
   });
-
   builder.addSection(section);
+
+  // --- SECTION 2: OTHER TOOLS IN SUITE (UNAVAILABLE CONTEXTS) ---
+  if (unavailableTools.length > 0) {
+    const unavailableSection = CardService.newCardSection()
+      .setHeader('Other Tools in Suite')
+      .setCollapsible(true);
+
+    unavailableTools.forEach((tool) => {
+      unavailableSection.addWidget(
+        CardService.newDecoratedText()
+          .setStartIcon(
+            CardService.newIconImage().setIconUrl(
+              ICON_URLS[tool.id as keyof typeof ICON_URLS] || ''
+            )
+          )
+          .setText(`<b>${tool.name}</b>`)
+          .setBottomLabel(
+            `<font color="${COLORS.MUTED}">${tool.info || 'No description available.'}</font><br><font color="${COLORS.WARNING}">⚠️ Required: ${getRequiredServiceDescription(tool)}</font>`
+          )
+          .setWrapText(true)
+      );
+    });
+    builder.addSection(unavailableSection);
+  }
+
   return builder.build();
 }

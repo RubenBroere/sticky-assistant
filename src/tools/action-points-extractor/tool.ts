@@ -7,7 +7,7 @@ const tool: Tool = {
   id: 'actionPointsExtractor',
   name: 'Action Points',
   icon: CardService.Icon.STORE,
-  info: 'Scan documents for action items and optionally sync to Todoist.',
+  info: 'Scan and sync action items.',
   settings: ACTION_POINTS_SETTINGS,
   validateSettings: (formInput: Record<string, any>) => {
     return validateActionPointsConfig(formInput);

@@ -8,7 +8,7 @@ const tool: Tool = {
   id: 'committeeCreator',
   name: 'Committee Creator',
   icon: CardService.Icon.BOOKMARK,
-  info: 'Clone and roll forward committee folder structures for the next academic year. Detects year patterns and can update document contents.',
+  info: 'Roll forward folder structures.',
   settings: COMMITTEE_CREATOR_SETTINGS,
   validateSettings: validateCommitteeConfig,
   triggers: [

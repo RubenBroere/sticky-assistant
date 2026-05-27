@@ -156,12 +156,10 @@ export function applyDocumentActionsLogic(e: any) {
           try {
             textElement.deleteText(start, end);
             textElement.insertText(start, newSub);
-            if (isOpen) {
-              const fullAfter = textElement.getText();
-              const endBold = Math.min(start + newSub.length - 1, fullAfter.length - 1);
-              if (endBold >= start) {
-                textElement.setBold(start, endBold, true);
-              }
+            const fullAfter = textElement.getText();
+            const endBold = Math.min(start + newSub.length - 1, fullAfter.length - 1);
+            if (endBold >= start) {
+              textElement.setBold(start, endBold, isOpen);
             }
           } catch {
             // ignore individual failures
@@ -184,7 +182,7 @@ export function applyDocumentActionsLogic(e: any) {
   if (addToTop) {
     const openMatches = parsed.openMatches || [];
     const expanded: any[] = [];
-    const raw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
+    const raw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS, e);
     const current = { peopleConfig: parsePeopleConfig(String(raw.peopleConfig || '')) } as any;
     openMatches.forEach((m: any) => {
       m.assignees.forEach((a: any) => {
@@ -204,12 +202,16 @@ export function applyDocumentActionsLogic(e: any) {
     });
 
     body.insertParagraph(0, 'Action points').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    let lastPerson: string | null = null;
     for (let i = expanded.length - 1; i >= 0; i--) {
       const item = expanded[i];
+      if (lastPerson !== null && item.person !== lastPerson) {
+        body.insertParagraph(1, '');
+      }
       const text = formatActionPoint(item.person, item.action, item.date);
       const listItem = body.insertListItem(1, text);
       listItem.setGlyphType(DocumentApp.GlyphType.BULLET);
-      listItem.editAsText().setBold(true);
+      lastPerson = item.person;
     }
   }
 
@@ -234,7 +236,7 @@ export function savePeopleConfigFromFormLogic(formInput: Record<string, any>) {
   };
 }
 
-export function populatePeopleConfigLogic(e: any) {
+export function populatePeopleConfigLogic(e: any, targetLayer: string = 'global') {
   const params = e.parameters || {};
   const peopleJson = params.peopleJson || '[]';
   let people: any[];
@@ -248,7 +250,7 @@ export function populatePeopleConfigLogic(e: any) {
     return { ok: true, message: 'No people to add.', addedCount: 0 };
   }
 
-  const rawCurrent = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
+  const rawCurrent = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS, e);
   const current = { peopleConfig: parsePeopleConfig(String(rawCurrent.peopleConfig || '')) };
   const nextPeopleConfig = { ...current.peopleConfig };
   let added = 0;
@@ -270,13 +272,16 @@ export function populatePeopleConfigLogic(e: any) {
       enableTodoist: rawCurrent.enableTodoist || false,
       peopleConfig: JSON.stringify(nextPeopleConfig),
     },
-    ACTION_POINTS_SETTINGS
+    ACTION_POINTS_SETTINGS,
+    targetLayer,
+    e
   );
 
   if (!result.ok) {
     return { ok: false, message: result.message || 'People Config is not valid JSON.' };
   }
 
-  const msg = added > 0 ? `Added ${added} people to settings.` : 'No new people to add.';
+  const msg =
+    added > 0 ? `Added ${added} people to ${targetLayer} settings.` : 'No new people to add.';
   return { ok: true, message: msg, addedCount: added };
 }

@@ -1,6 +1,4 @@
-export interface CommentsExtractorConfig {
-  // Reserved for future persisted settings.
-}
+export type CommentsExtractorConfig = Record<string, never>;
 export function validateCommentsExtractorConfig(formInput: Record<string, any>): {
   ok: boolean;
   message?: string;

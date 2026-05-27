@@ -5,6 +5,7 @@ export interface ToolSetting {
   placeholder?: string;
   default?: string | boolean | number;
   value?: string | boolean | number;
+  secret?: boolean;
 }
 
 export function getToolSettingDefaultValue(

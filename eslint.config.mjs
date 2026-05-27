@@ -14,19 +14,13 @@ const compat = new FlatCompat({
 
 export default [
   {
-    ignores: [
-      'node_modules/',
-      'dist/',
-      'build/',
-      '*.min.js',
-      '*.lock',
-    ],
+    ignores: ['node_modules/', 'dist/', 'build/', '*.min.js', '*.lock'],
   },
   ...compat.extends(
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
     'plugin:prettier/recommended',
-    'prettier',
+    'prettier'
   ),
   {
     files: ['src/**/*.ts'],
@@ -41,6 +35,7 @@ export default [
     rules: {
       'prettier/prettier': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ];

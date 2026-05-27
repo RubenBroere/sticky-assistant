@@ -1,48 +1,55 @@
-export function buildSettingsCard() {
+import { COLORS, getAppName } from './branding';
+
+/**
+ * Builds a standardized, beautiful status or message card.
+ * Normalizes user feedback and removes redundant message card code.
+ */
+export function buildStatusCard(
+  title: string,
+  message: string,
+  statusType: 'info' | 'success' | 'warning' | 'error' = 'info'
+): GoogleAppsScript.Card_Service.Card {
   const builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle('Settings'));
+  builder.setHeader(CardService.newCardHeader().setTitle(getAppName()));
 
-  // --- TOOL SETTINGS SECTION ---
-  const toolSection = CardService.newCardSection().setHeader('Tool Settings');
+  let icon: GoogleAppsScript.Card_Service.Icon;
+  let color: string;
 
-  toolSection.addWidget(
-    CardService.newTextButton()
-      .setText('Action Points')
-      .setOnClickAction(CardService.newAction().setFunctionName('buildActionPointsSettingsCard'))
+  switch (statusType) {
+    case 'success':
+      icon = CardService.Icon.STAR;
+      color = COLORS.SUCCESS;
+      break;
+    case 'error':
+      icon = CardService.Icon.OFFER;
+      color = COLORS.ERROR;
+      break;
+    case 'warning':
+      icon = CardService.Icon.CLOCK;
+      color = COLORS.WARNING;
+      break;
+    case 'info':
+    default:
+      icon = CardService.Icon.DESCRIPTION;
+      color = COLORS.PRIMARY;
+      break;
+  }
+
+  const section = CardService.newCardSection().addWidget(
+    CardService.newDecoratedText()
+      .setStartIcon(CardService.newIconImage().setIcon(icon))
+      .setText(`<font color="${color}"><b>${title}</b></font>`)
+      .setBottomLabel(message)
+      .setWrapText(true)
   );
-
-  toolSection.addWidget(
-    CardService.newTextButton()
-      .setText('Committees')
-      .setOnClickAction(CardService.newAction().setFunctionName('buildCommitteeSettingsCard'))
-  );
-
-  toolSection.addWidget(
-    CardService.newTextButton()
-      .setText('PDF Comment Viewer')
-      .setOnClickAction(CardService.newAction().setFunctionName('buildDriveCommentsSettingsCard'))
-  );
-
-  builder.addSection(toolSection);
-
-  // --- NAVIGATION SECTION ---
-  const navSection = CardService.newCardSection();
-  const backAction = CardService.newAction().setFunctionName('onDefaultHomepage');
-  navSection.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(backAction));
-
-  builder.addSection(navSection);
-
-  return builder.build();
-}
-
-export function createMessageCard(title: string, message: string) {
-  const builder = CardService.newCardBuilder();
-  builder.setHeader(CardService.newCardHeader().setTitle(title));
-  const section = CardService.newCardSection();
-  section.addWidget(CardService.newTextParagraph().setText(message));
 
   const backAction = CardService.newAction().setFunctionName('onDefaultHomepage');
-  section.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(backAction));
+  section.addWidget(
+    CardService.newTextButton()
+      .setText('Back to Home')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(backAction)
+  );
 
   builder.addSection(section);
   return builder.build();

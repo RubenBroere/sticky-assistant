@@ -1,7 +1,9 @@
 import { getSelectedPdfItem } from './scanning';
 import { exportCommentsToSheetLogic } from './editing';
-import { buildToolCard } from '../../core/cardTemplate';
+import { buildToolCard, buildToolFooter } from '../../core/cardTemplate';
 import { COMMENTS_EXTRACTOR_SETTINGS } from './settings';
+import { buildStatusCard } from '../../core/cards';
+import { COLORS } from '../../core/branding';
 
 const TOOL_META = {
   id: 'commentsExtractor',
@@ -10,33 +12,28 @@ const TOOL_META = {
   settings: COMMENTS_EXTRACTOR_SETTINGS,
 };
 
-export function buildEmptyCard(text: string) {
-  return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('PDF Comment Viewer'))
-    .addSection(
-      CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(text))
-    )
-    .build();
-}
-
-export function createCommentsExtractorHomepage(e: any) {
+export function createCommentsExtractorHomepage(e: any): GoogleAppsScript.Card_Service.Card {
   const item = getSelectedPdfItem(e);
   if (!item) {
-    return buildEmptyCard('Select a PDF file to view comments.');
+    return buildStatusCard(
+      'Select a PDF',
+      'Please select a PDF file in Google Drive to view and export its comments.',
+      'info'
+    );
   }
 
-  const builder = buildToolCard(TOOL_META, 'Select a PDF file to view inline Drive comments.');
+  const builder = buildToolCard(TOOL_META, 'Export comments from PDFs.');
 
   const section = CardService.newCardSection()
-    .addWidget(CardService.newTextParagraph().setText(`**Selected:** ${item.title}`))
     .addWidget(
-      CardService.newTextParagraph().setText(
-        'Click below to view comments directly in this sidebar.'
-      )
+      CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
+        .setText(`Selected PDF: <b>${item.title}</b>`)
+        .setWrapText(true)
     )
     .addWidget(
       CardService.newTextButton()
-        .setText('View Comments')
+        .setText('Export Comments')
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
         .setOnClickAction(
           CardService.newAction()
@@ -46,26 +43,49 @@ export function createCommentsExtractorHomepage(e: any) {
     );
 
   builder.addSection(section);
+  builder.addSection(buildToolFooter('commentsExtractor', true));
   return builder.build();
 }
 
-export function exportCommentsToSheet(e: any) {
+export function exportCommentsToSheet(e: any): GoogleAppsScript.Card_Service.Card {
   const result = exportCommentsToSheetLogic(e);
 
   if (!result.ok) {
-    return buildEmptyCard(result.message);
+    return buildStatusCard(
+      'Export Failed',
+      result.message || 'An error occurred during comment export.',
+      'error'
+    );
   }
 
-  return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Export Complete'))
-    .addSection(
-      CardService.newCardSection()
-        .addWidget(CardService.newTextParagraph().setText(result.message))
-        .addWidget(
-          CardService.newTextButton()
-            .setText('Open Google Sheet')
-            .setOpenLink(CardService.newOpenLink().setUrl(result.sheetUrl || ''))
-        )
+  const builder = CardService.newCardBuilder();
+  builder.setHeader(
+    CardService.newCardHeader().setTitle(
+      `<font color="${COLORS.SUCCESS}"><b>Export Complete</b></font>`
     )
-    .build();
+  );
+
+  const section = CardService.newCardSection()
+    .addWidget(
+      CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.STAR))
+        .setText(`<font color="${COLORS.SUCCESS}"><b>Comments Exported Successfully</b></font>`)
+        .setBottomLabel(result.message)
+        .setWrapText(true)
+    )
+    .addWidget(
+      CardService.newTextButton()
+        .setText('Open Google Sheet')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOpenLink(CardService.newOpenLink().setUrl(result.sheetUrl || ''))
+    );
+
+  const backAction = CardService.newAction()
+    .setFunctionName('openTool')
+    .setParameters({ toolId: 'commentsExtractor' });
+
+  section.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(backAction));
+
+  builder.addSection(section);
+  return builder.build();
 }

@@ -7,7 +7,7 @@ const tool: Tool = {
   id: 'commentsExtractor',
   name: 'Comments Extractor',
   icon: CardService.Icon.DESCRIPTION,
-  info: 'View and export comments from PDF files directly within Google Drive. Select a PDF to get started.',
+  info: 'Export comments from PDFs.',
   settings: COMMENTS_EXTRACTOR_SETTINGS,
   validateSettings: (formInput: Record<string, unknown>) => {
     return validateCommentsExtractorConfig(formInput);

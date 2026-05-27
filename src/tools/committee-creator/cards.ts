@@ -1,7 +1,6 @@
-import { getAppName } from '../../core/branding';
-import { COMMITTEE_CONFIG } from './config';
-import { buildToolCard } from '../../core/cardTemplate';
+import { buildToolCard, buildToolFooter } from '../../core/cardTemplate';
 import { COMMITTEE_CREATOR_SETTINGS } from './settings';
+import { COLORS } from '../../core/branding';
 
 const TOOL_META = {
   id: 'committeeCreator',
@@ -10,39 +9,29 @@ const TOOL_META = {
   settings: COMMITTEE_CREATOR_SETTINGS,
 };
 
-export function createCommitteeMessageCard(message: string, isInfo: boolean = true) {
-  const icon = isInfo ? COMMITTEE_CONFIG.ICONS.INFO : COMMITTEE_CONFIG.ICONS.ERROR;
-  const title = isInfo ? getAppName() : 'Attention';
-
+export function createCommitteeAnalyzeCard(
+  folderName: string,
+  folderId: string
+): GoogleAppsScript.Card_Service.Card {
   return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle(title))
-    .addSection(
-      CardService.newCardSection().addWidget(
-        CardService.newDecoratedText()
-          .setText(message)
-          .setWrapText(true)
-          .setStartIcon(CardService.newIconImage().setIcon(icon))
-      )
+    .setHeader(
+      CardService.newCardHeader().setTitle('Committee Creator').setSubtitle('Ready to Scan')
     )
-    .build();
-}
-
-export function createCommitteeAnalyzeCard(folderName: string, folderId: string) {
-  return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle(getAppName()).setSubtitle('Ready to Scan'))
     .addSection(
       CardService.newCardSection()
         .addWidget(
-          CardService.newKeyValue()
-            .setTopLabel('Selected Folder')
-            .setContent(folderName)
-            .setIcon(COMMITTEE_CONFIG.ICONS.FOLDER)
-            .setMultiline(true)
+          CardService.newDecoratedText()
+            .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
+            .setText(`Selected Folder: <b>${folderName}</b>`)
+            .setBottomLabel('Google Drive Folder')
+            .setWrapText(true)
         )
         .addWidget(
-          CardService.newTextParagraph().setText(
-            'Click below to detect structure (Single Committee or Parent Group) and year patterns.'
-          )
+          CardService.newDecoratedText()
+            .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
+            .setText('Ready to Scan')
+            .setBottomLabel('Will detect structure (Single or Parent Group) and year patterns.')
+            .setWrapText(true)
         )
         .addWidget(
           CardService.newTextButton()
@@ -61,77 +50,85 @@ export function createCommitteeAnalyzeCard(folderName: string, folderId: string)
 export function createCommitteeExecutionCard(
   newRootName: string,
   destRootFolder: GoogleAppsScript.Drive.Folder
-) {
+): GoogleAppsScript.Card_Service.Card {
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle('Task Complete'))
     .addSection(
       CardService.newCardSection()
         .addWidget(
-          CardService.newKeyValue()
-            .setTopLabel('Status')
-            .setContent('Success')
-            .setIcon(COMMITTEE_CONFIG.ICONS.CHECK)
-            .setButton(
-              CardService.newTextButton()
-                .setText('Open Folder')
-                .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                .setOpenLink(CardService.newOpenLink().setUrl(destRootFolder.getUrl()))
+          CardService.newDecoratedText()
+            .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.STAR))
+            .setText(
+              `<font color="${COLORS.SUCCESS}"><b>Cloning Completed Successfully!</b></font>`
             )
+            .setBottomLabel(`Created: ${newRootName}`)
+            .setWrapText(true)
         )
         .addWidget(
-          CardService.newKeyValue()
-            .setTopLabel('Created Folder')
-            .setContent(newRootName)
-            .setMultiline(true)
+          CardService.newTextButton()
+            .setText('Open Google Drive Folder')
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setOpenLink(CardService.newOpenLink().setUrl(destRootFolder.getUrl()))
         )
         .addWidget(
           CardService.newTextButton()
             .setText('Start Over')
-            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
             .setOnClickAction(CardService.newAction().setFunctionName('onDriveSelection'))
         )
     )
     .build();
 }
 
-export function onCommitteeHomepage() {
-  const builder = buildToolCard(
-    TOOL_META,
-    'Clone and roll forward committee folder structures for the next academic year. Detects year patterns and can update document contents.'
+export function onCommitteeHomepage(): GoogleAppsScript.Card_Service.Card {
+  const builder = buildToolCard(TOOL_META, 'Roll forward folder structures.');
+
+  builder.addSection(
+    CardService.newCardSection()
+      .setHeader('How to use')
+      .addWidget(
+        CardService.newDecoratedText()
+          .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
+          .setText('<b>Step 1</b>: Go to Google Drive')
+          .setWrapText(true)
+      )
+      .addWidget(
+        CardService.newDecoratedText()
+          .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
+          .setText('<b>Step 2</b>: Select a committee folder (e.g., <i>"BaCo 2024-2025"</i>)')
+          .setWrapText(true)
+      )
+      .addWidget(
+        CardService.newDecoratedText()
+          .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.STAR))
+          .setText('<b>Step 3</b>: Use this sidebar to clone for the next year')
+          .setWrapText(true)
+      )
   );
 
   builder.addSection(
     CardService.newCardSection()
+      .setHeader('Key Features')
       .addWidget(
-        CardService.newTextParagraph().setText(
-          'This tool rolls committee folder structures forward to the next academic year.'
-        )
+        CardService.newDecoratedText()
+          .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.STAR))
+          .setText('<b>Smart Year Detection</b>')
+          .setBottomLabel(
+            'Automatically detects patterns like "2024/2025" or "2024-2025" in folder names.'
+          )
+          .setWrapText(true)
       )
       .addWidget(
-        CardService.newTextParagraph().setText(
-          '<b>How to use:</b><br>1. Go to Google Drive.<br>2. Select a committee folder (e.g., "BaCo 2024-2025").<br>3. Use the sidebar to clone for the next year.'
-        )
+        CardService.newDecoratedText()
+          .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.DESCRIPTION))
+          .setText('<b>Inhoud bijwerken (Content Updates)</b>')
+          .setBottomLabel(
+            'Renames copied files and updates internal [YEAR] template tags inside Google Docs.'
+          )
+          .setWrapText(true)
       )
   );
 
-  builder.addSection(
-    CardService.newCardSection()
-      .setHeader('Features')
-      .addWidget(
-        CardService.newKeyValue()
-          .setTopLabel('Smart Year Detection')
-          .setContent('Detects "2024/2025" or "2024-2025" folder names.')
-          .setIcon(COMMITTEE_CONFIG.ICONS.MAGIC)
-          .setMultiline(true)
-      )
-      .addWidget(
-        CardService.newKeyValue()
-          .setTopLabel('Inhoud bijwerken')
-          .setContent('Renames files and updates [YEAR] tags inside Docs.')
-          .setIcon(COMMITTEE_CONFIG.ICONS.DESCRIPTION)
-          .setMultiline(true)
-      )
-  );
+  builder.addSection(buildToolFooter('committeeCreator', true));
 
   return builder.build();
 }

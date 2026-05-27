@@ -1,10 +1,7 @@
 import { COMMITTEE_CONFIG } from './config';
 import { getOrCreateFolder, getUniqueFileName, transformText } from './scanning';
-import {
-  createCommitteeAnalyzeCard,
-  createCommitteeExecutionCard,
-  createCommitteeMessageCard,
-} from './cards';
+import { createCommitteeAnalyzeCard, createCommitteeExecutionCard } from './cards';
+import { buildStatusCard } from '../../core/cards';
 import { analyzeFolderName } from './scanning';
 
 export function processCommitteeCloning(
@@ -98,21 +95,37 @@ export function updateDocLinks(fileMap: Record<string, string>) {
 
 export function onDriveSelection(e: any) {
   if (!e || !e.drive || !e.drive.selectedItems) {
-    return createCommitteeMessageCard('Select a folder to begin.', true);
+    return buildStatusCard(
+      'Selection Required',
+      'Please select a folder in Google Drive to begin.',
+      'info'
+    );
   }
 
   const items = e.drive.selectedItems;
   if (items.length === 0) {
-    return createCommitteeMessageCard('Select a folder to begin.', true);
+    return buildStatusCard(
+      'Selection Required',
+      'Please select a folder in Google Drive to begin.',
+      'info'
+    );
   }
 
   if (items.length > 1) {
-    return createCommitteeMessageCard('Please select only one folder.', false);
+    return buildStatusCard(
+      'Single Folder Required',
+      'Please select only one folder to clone.',
+      'warning'
+    );
   }
 
   const item = items[0];
   if (item.mimeType !== (MimeType as any).FOLDER) {
-    return createCommitteeMessageCard('Selected item is not a folder.', false);
+    return buildStatusCard(
+      'Invalid Selection',
+      'The selected item is not a folder. Please select a valid folder.',
+      'error'
+    );
   }
 
   return createCommitteeAnalyzeCard(item.title, item.id);
@@ -124,9 +137,10 @@ export function runScan(e: any) {
 
   const analysis = analyzeFolderName(folderName);
   if (!analysis.found) {
-    return createCommitteeMessageCard(
-      '<b>Error:</b> No year pattern detected.<br>Folder must contain YYYY or YYYY/YYYY.',
-      false
+    return buildStatusCard(
+      'No Year Pattern Detected',
+      'The folder name must contain a year pattern (e.g. YYYY or YYYY-YYYY) to roll forward.',
+      'error'
     );
   }
 
@@ -134,37 +148,38 @@ export function runScan(e: any) {
   const scanResult = scanForCommittees(sourceFolder);
 
   if (scanResult.mode === 'none') {
-    return createCommitteeMessageCard(
-      `<b>Error:</b> Invalid structure.<br>Direct: Must contain "${COMMITTEE_CONFIG.TEMPLATE_NAME}".<br>Parent: Subfolders must contain "${COMMITTEE_CONFIG.TEMPLATE_NAME}".`,
-      false
+    return buildStatusCard(
+      'Invalid Folder Structure',
+      `The selected folder does not contain a "${COMMITTEE_CONFIG.TEMPLATE_NAME}" subfolder, and neither do any of its subfolders. Please check your folder structure.`,
+      'error'
     );
   }
 
   const section = CardService.newCardSection()
     .addWidget(
-      CardService.newKeyValue()
-        .setTopLabel('Structure Detected')
-        .setContent(
+      CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(COMMITTEE_CONFIG.ICONS.INFO))
+        .setText('Structure Detected')
+        .setBottomLabel(
           scanResult.mode === 'direct'
             ? 'Single Committee'
             : `Parent Group (${scanResult.committees.length} Committees)`
         )
-        .setIcon(COMMITTEE_CONFIG.ICONS.INFO)
-        .setMultiline(true)
+        .setWrapText(true)
     )
     .addWidget(
-      CardService.newKeyValue()
-        .setTopLabel('Current Pattern')
-        .setContent(analysis.currentPattern)
-        .setIcon(COMMITTEE_CONFIG.ICONS.CLOCK)
-        .setMultiline(true)
+      CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(COMMITTEE_CONFIG.ICONS.CLOCK))
+        .setText('Current Pattern')
+        .setBottomLabel(analysis.currentPattern)
+        .setWrapText(true)
     )
     .addWidget(
-      CardService.newKeyValue()
-        .setTopLabel('Next Cycle Target')
-        .setContent(analysis.nextFull)
-        .setIcon(COMMITTEE_CONFIG.ICONS.MAGIC)
-        .setMultiline(true)
+      CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(COMMITTEE_CONFIG.ICONS.MAGIC))
+        .setText('Next Cycle Target')
+        .setBottomLabel(analysis.nextFull)
+        .setWrapText(true)
     );
 
   const actionSection = CardService.newCardSection()
@@ -239,7 +254,7 @@ export function runExecution(e: any) {
       .build();
   } catch (err: any) {
     console.error(err);
-    return createCommitteeMessageCard(`Error: ${err.toString()}`, false);
+    return buildStatusCard('Execution Error', err.toString(), 'error');
   }
 }
 
