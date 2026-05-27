@@ -11,10 +11,7 @@ vi.hoisted(() => {
   globalThis.CardService = mockCardService as any;
 });
 
-import {
-  saveToolSettings,
-  resetSettingsCache,
-} from './settingsStore';
+import { saveToolSettings, resetSettingsCache } from './settingsStore';
 import { ToolSetting } from './Tool';
 
 // Mock the global Google Apps Script services
@@ -38,7 +35,8 @@ const mockFolder = {
   getFilesByName: (name: string) => {
     let hasReturned = false;
     return {
-      hasNext: () => name === 'sticky-assistant.json' && workspaceConfigContent !== null && !hasReturned,
+      hasNext: () =>
+        name === 'sticky-assistant.json' && workspaceConfigContent !== null && !hasReturned,
       next: () => {
         hasReturned = true;
         return {
@@ -64,7 +62,7 @@ const mockFolder = {
 const mockDriveApp = {
   getFileById: () => ({
     getParents: () => {
-      let hasReturned = false;
+      const hasReturned = false;
       return {
         hasNext: () => !hasReturned,
         next: () => mockFolder,
@@ -188,8 +186,8 @@ describe('settingsStore', () => {
 
       const values = {
         todoistProjectId: 'global-project-xyz', // identical to global!
-        enableTodoist: true,                  // identical to global!
-        peopleConfig: '{"Alice": {}}',          // new/different workspace setting
+        enableTodoist: true, // identical to global!
+        peopleConfig: '{"Alice": {}}', // new/different workspace setting
       };
 
       const res = saveToolSettings('actionPointsExtractor', values, mockDefs, 'workspace');
@@ -221,7 +219,9 @@ describe('settingsStore', () => {
 
       const parsed = JSON.parse(workspaceConfigContent);
       // Existing override must be preserved
-      expect(parsed['actionPointsExtractor']['todoistProjectId']).toBe('existing-workspace-project');
+      expect(parsed['actionPointsExtractor']['todoistProjectId']).toBe(
+        'existing-workspace-project'
+      );
       expect(parsed['actionPointsExtractor']['peopleConfig']).toEqual({ Bob: {} });
       // Undefined fields must NOT get their default value written
       expect(parsed['actionPointsExtractor']['enableTodoist']).toBeUndefined();
