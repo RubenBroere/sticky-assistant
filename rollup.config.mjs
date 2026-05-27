@@ -7,12 +7,7 @@ export default {
   input: 'src/index.ts',
   output: {
     dir: 'dist',
-    format: 'esm', 
+    format: 'esm',
   },
-  plugins: [
-    json(),
-    resolve(),
-    typescript(),
-    gasPlugin()
-  ],
+  plugins: [json(), resolve(), typescript(), gasPlugin()],
 };
