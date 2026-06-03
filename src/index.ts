@@ -24,3 +24,18 @@ export { exportCommentsToSheet } from './tools/comments-extractor/cards';
 
 // Committee Creator Callbacks
 export { onDriveSelection, runScan, runExecution } from './tools/committee-creator/editing';
+
+// Calendar Sync Callbacks & Triggers
+export {
+  openCreateJobCard,
+  openEditJobCard,
+  saveJobAction,
+  triggerSyncManual,
+  openDeleteJobConfirmCard,
+  deleteJobAction,
+} from './tools/calendar-sync/cards';
+export {
+  handleHourlySync,
+  handleBackgroundInitialSync,
+  handleBackgroundDeletion,
+} from './tools/calendar-sync/sync';

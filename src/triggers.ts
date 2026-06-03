@@ -24,3 +24,9 @@ export function onItemsSelected(
 ): GoogleAppsScript.Card_Service.Card {
   return buildToolSelectorCard(e, TriggerEvent.ITEMS_SELECTED);
 }
+
+export function onCalendarHomepage(
+  e: GoogleAppsScript.Addons.EventObject
+): GoogleAppsScript.Card_Service.Card {
+  return buildToolSelectorCard(e, TriggerEvent.CALENDAR_HOMEPAGE);
+}

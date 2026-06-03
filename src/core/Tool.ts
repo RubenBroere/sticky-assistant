@@ -47,4 +47,5 @@ export enum TriggerEvent {
   DOCS_HOMEPAGE,
   DRIVE_HOMEPAGE,
   ITEMS_SELECTED,
+  CALENDAR_HOMEPAGE,
 }

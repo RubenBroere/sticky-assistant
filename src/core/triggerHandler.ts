@@ -25,6 +25,14 @@ function getMatchingTriggers(event: TriggerEvent, e: GoogleAppsScript.Addons.Eve
  * Dynamically deduces the host app or Drive folder/file selection required for a tool.
  */
 function getRequiredServiceDescription(tool: Tool): string {
+  // Check if any trigger is Calendar homepage
+  const hasCalendar = tool.triggers.some(
+    (t) =>
+      t.event === TriggerEvent.CALENDAR_HOMEPAGE ||
+      (t.enabled && t.enabled({ commonEventObject: { hostApp: 'CALENDAR' } } as any))
+  );
+  if (hasCalendar) return 'Google Calendar';
+
   // Check if any trigger is Docs homepage
   const hasDocs = tool.triggers.some(
     (t) =>
