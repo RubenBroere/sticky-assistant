@@ -9,6 +9,7 @@ import {
   setupTriggers,
   enqueueBackgroundSync,
 } from './sync';
+import { getCalendarNamesMap, resolveCalendarName } from './names';
 
 const TOOL_META = {
   id: 'calendarSync',
@@ -109,13 +110,7 @@ export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Servic
  * Returns the name of a calendar, or its ID as fallback.
  */
 function getCalendarNameSafely(calendarId: string): string {
-  if (calendarId === 'CREATE_NEW') return '[Create New Calendar]';
-  try {
-    const cal = CalendarApp.getCalendarById(calendarId);
-    return cal ? cal.getName() : calendarId;
-  } catch {
-    return calendarId;
-  }
+  return resolveCalendarName(calendarId);
 }
 
 /**
@@ -158,6 +153,8 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
       .setValue(config ? config.name : '')
   );
 
+  const namesMap = getCalendarNamesMap();
+
   // Source Calendars
   const sourcesSelect = CardService.newSelectionInput()
     .setType(CardService.SelectionInputType.CHECK_BOX)
@@ -166,8 +163,10 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
 
   const calendars = CalendarApp.getAllCalendars();
   calendars.forEach((cal) => {
-    const isSelected = config ? config.sourceCalendarIds.includes(cal.getId()) : false;
-    sourcesSelect.addItem(cal.getName(), cal.getId(), isSelected);
+    const id = cal.getId();
+    const displayName = namesMap[id] || cal.getName() || id;
+    const isSelected = config ? config.sourceCalendarIds.includes(id) : false;
+    sourcesSelect.addItem(displayName, id, isSelected);
   });
   section.addWidget(sourcesSelect);
 
@@ -182,7 +181,9 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
   const ownCalendars = CalendarApp.getAllOwnedCalendars();
   ownCalendars.forEach((cal) => {
     try {
-      targetSelect.addItem(cal.getName(), cal.getId(), config ? config.targetCalendarId === cal.getId() : false);
+      const id = cal.getId();
+      const displayName = namesMap[id] || cal.getName() || id;
+      targetSelect.addItem(displayName, id, config ? config.targetCalendarId === id : false);
     } catch (err) {
       console.warn(`Error adding calendar ${cal.getId()} to target dropdown:`, err);
     }
@@ -203,8 +204,9 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     .setType(CardService.SelectionInputType.DROPDOWN)
     .setFieldName('syncPrivacy')
     .setTitle('Privacy Masking Mode')
-    .addItem('Sync full details (Title, desc, location)', 'full', !config || config.syncPrivacy === 'full')
-    .addItem("Sync as 'Busy' blocks only (Mask text)", 'busy', config?.syncPrivacy === 'busy');
+    .addItem('Sync as Calendar Name (Mask details) [Default]', 'calendarName', !config || config.syncPrivacy === 'calendarName')
+    .addItem('Sync full details (Title, description, location)', 'full', config?.syncPrivacy === 'full')
+    .addItem("Sync as 'Busy' blocks only (Mask details)", 'busy', config?.syncPrivacy === 'busy');
   section.addWidget(privacySelect);
 
   // Filter Out Free events

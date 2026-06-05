@@ -4,7 +4,7 @@ export interface SyncConfig {
   sourceCalendarIds: string[];         // Source calendar IDs to sync from
   targetCalendarId: string;            // Target calendar ID to sync to
   prefix: string;                      // Prefix prepended to event titles (e.g. "[Work]")
-  syncPrivacy: 'full' | 'busy';         // Sync mode: full detail vs busy block only
+  syncPrivacy: 'full' | 'busy' | 'calendarName'; // Sync mode: full detail vs busy block vs calendar name
   syncOnlyBusyEvents: boolean;         // If true, skip events marked transparent/free
   syncRangeMonthsBack: number;         // Time range: months in past to look back
   syncRangeMonthsForward: number;      // Time range: months in future to look forward

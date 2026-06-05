@@ -1,4 +1,5 @@
 import { SyncConfig } from './types';
+import { resolveCalendarName } from './names';
 
 const JOBS_LIST_KEY = 'calendarSync__jobsList';
 const JOB_PREFIX_KEY = 'calendarSync__job__';
@@ -198,6 +199,7 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
     }
 
     const sourceCalId = config.sourceCalendarIds[nextIndex];
+    const sourceCalName = resolveCalendarName(sourceCalId);
     config.statusMessage = `Syncing calendar ${nextIndex + 1}/${config.sourceCalendarIds.length}...`;
     saveSyncConfig(config);
 
@@ -341,11 +343,13 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
         processedSourceKeys.add(uniqueSourceKey);
       }
 
-      const title =
-        config.prefix +
-        (config.syncPrivacy === 'busy' ? 'Busy' : sourceEvent.summary || 'Untitled Event');
-      const description = config.syncPrivacy === 'busy' ? '' : sourceEvent.description || '';
-      const location = config.syncPrivacy === 'busy' ? '' : sourceEvent.location || '';
+      const isMasked = config.syncPrivacy === 'busy' || config.syncPrivacy === 'calendarName';
+      const eventTitle = config.syncPrivacy === 'busy'
+        ? 'Busy'
+        : (config.syncPrivacy === 'calendarName' ? sourceCalName : sourceEvent.summary || 'Untitled Event');
+      const title = config.prefix + eventTitle;
+      const description = isMasked ? '' : sourceEvent.description || '';
+      const location = isMasked ? '' : sourceEvent.location || '';
 
       const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
 
