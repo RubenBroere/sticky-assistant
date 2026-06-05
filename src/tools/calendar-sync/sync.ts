@@ -33,7 +33,7 @@ export function loadAllSyncConfigs(): SyncConfig[] {
  */
 export function saveSyncConfig(config: SyncConfig): void {
   const props = PropertiesService.getUserProperties();
-  
+
   // Save individual configuration
   props.setProperty(`${JOB_PREFIX_KEY}${config.id}`, JSON.stringify(config));
 
@@ -162,7 +162,9 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
         config.targetCalendarId = targetCalId;
         saveSyncConfig(config); // Save the resolved calendar ID
       } catch (calErr: any) {
-        throw new Error(`Failed to create new calendar '${config.name}': ${calErr?.message || calErr}`);
+        throw new Error(
+          `Failed to create new calendar '${config.name}': ${calErr?.message || calErr}`
+        );
       }
     }
 
@@ -210,7 +212,10 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
     // Optimization: Only map target events that originate from this specific source calendar
     const targetEventsBySourceKey: Record<string, GoogleAppsScript.Calendar.CalendarEvent[]> = {};
     targetEvents.forEach((event) => {
-      if (event.getTag('syncJobId') === config.id && event.getTag('syncSourceCalendarId') === sourceCalId) {
+      if (
+        event.getTag('syncJobId') === config.id &&
+        event.getTag('syncSourceCalendarId') === sourceCalId
+      ) {
         const sourceKey = event.getTag('syncSourceEventId');
         if (sourceKey) {
           if (!targetEventsBySourceKey[sourceKey]) {
@@ -259,8 +264,16 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
         response = calService.Events.list(sourceCalId, options);
       } catch (err: any) {
         const errMsg = err?.message || String(err);
-        if (errMsg.includes('410') || errMsg.includes('Gone') || errMsg.includes('syncToken') || !isFullSync) {
-          console.warn(`Sync token expired or invalid for calendar ${sourceCalId}. Re-running full sync.`, err);
+        if (
+          errMsg.includes('410') ||
+          errMsg.includes('Gone') ||
+          errMsg.includes('syncToken') ||
+          !isFullSync
+        ) {
+          console.warn(
+            `Sync token expired or invalid for calendar ${sourceCalId}. Re-running full sync.`,
+            err
+          );
           isFullSync = true;
           pageToken = undefined;
           items = [];
@@ -344,9 +357,12 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
       }
 
       const isMasked = config.syncPrivacy === 'busy' || config.syncPrivacy === 'calendarName';
-      const eventTitle = config.syncPrivacy === 'busy'
-        ? 'Busy'
-        : (config.syncPrivacy === 'calendarName' ? sourceCalName : sourceEvent.summary || 'Untitled Event');
+      const eventTitle =
+        config.syncPrivacy === 'busy'
+          ? 'Busy'
+          : config.syncPrivacy === 'calendarName'
+            ? sourceCalName
+            : sourceEvent.summary || 'Untitled Event';
       const title = config.prefix + eventTitle;
       const description = isMasked ? '' : sourceEvent.description || '';
       const location = isMasked ? '' : sourceEvent.location || '';
@@ -601,11 +617,7 @@ export function handleBackgroundDeletion(e: any): void {
 /**
  * Shared deletion helper.
  */
-function executeDeletionLogic(
-  jobId: string,
-  targetCalendarId: string,
-  deleteOption: string
-): void {
+function executeDeletionLogic(jobId: string, targetCalendarId: string, deleteOption: string): void {
   if (deleteOption === 'delete_calendar') {
     try {
       const targetCal = CalendarApp.getCalendarById(targetCalendarId);

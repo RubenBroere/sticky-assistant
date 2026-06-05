@@ -21,7 +21,10 @@ const TOOL_META = {
  * Renders the home dashboard card listing all active sync jobs.
  */
 export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Service.Card {
-  const builder = buildToolCard(TOOL_META, 'Combine multiple calendars into one target calendar and keep them synchronized.');
+  const builder = buildToolCard(
+    TOOL_META,
+    'Combine multiple calendars into one target calendar and keep them synchronized.'
+  );
 
   const configs = loadAllSyncConfigs();
 
@@ -48,7 +51,8 @@ export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Servic
         statusStr = '<font color="#5f6368">⚪ Pending Initial Sync</font>';
       }
 
-      const detailText = `<b>${config.name}</b>\n` +
+      const detailText =
+        `<b>${config.name}</b>\n` +
         `Target: ${getCalendarNameSafely(config.targetCalendarId)}\n` +
         `Sources: ${config.sourceCalendarIds.length} calendars\n` +
         `Status: ${statusStr}`;
@@ -66,27 +70,11 @@ export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Servic
         .setParameters({ jobId: config.id });
 
       const buttonSet = CardService.newButtonSet()
-        .addButton(
-          CardService.newTextButton()
-            .setText('Sync')
-            .setOnClickAction(syncAction)
-        )
-        .addButton(
-          CardService.newTextButton()
-            .setText('Edit')
-            .setOnClickAction(editAction)
-        )
-        .addButton(
-          CardService.newTextButton()
-            .setText('Delete')
-            .setOnClickAction(deleteAction)
-        );
+        .addButton(CardService.newTextButton().setText('Sync').setOnClickAction(syncAction))
+        .addButton(CardService.newTextButton().setText('Edit').setOnClickAction(editAction))
+        .addButton(CardService.newTextButton().setText('Delete').setOnClickAction(deleteAction));
 
-      syncSection.addWidget(
-        CardService.newDecoratedText()
-          .setText(detailText)
-          .setWrapText(true)
-      );
+      syncSection.addWidget(CardService.newDecoratedText().setText(detailText).setWrapText(true));
       syncSection.addWidget(buttonSet);
     });
   }
@@ -135,12 +123,11 @@ export function openEditJobCard(e: any): GoogleAppsScript.Card_Service.Card {
  */
 function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card_Service.Card {
   const isNew = !config;
-  const builder = CardService.newCardBuilder()
-    .setHeader(
-      CardService.newCardHeader()
-        .setTitle(isNew ? 'Create Combined Calendar' : 'Edit Combined Calendar')
-        .setSubtitle(isNew ? 'Define sync sources and targets' : `Modify ${config.name}`)
-    );
+  const builder = CardService.newCardBuilder().setHeader(
+    CardService.newCardHeader()
+      .setTitle(isNew ? 'Create Combined Calendar' : 'Edit Combined Calendar')
+      .setSubtitle(isNew ? 'Define sync sources and targets' : `Modify ${config.name}`)
+  );
 
   const section = CardService.newCardSection();
 
@@ -176,7 +163,11 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     .setFieldName('targetCalendarId')
     .setTitle('Target Calendar (Select to sync TO)');
 
-  targetSelect.addItem('[Create New Dedicated Calendar]', 'CREATE_NEW', isNew || config?.targetCalendarId === 'CREATE_NEW');
+  targetSelect.addItem(
+    '[Create New Dedicated Calendar]',
+    'CREATE_NEW',
+    isNew || config?.targetCalendarId === 'CREATE_NEW'
+  );
 
   const ownCalendars = CalendarApp.getAllOwnedCalendars();
   ownCalendars.forEach((cal) => {
@@ -204,8 +195,16 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     .setType(CardService.SelectionInputType.DROPDOWN)
     .setFieldName('syncPrivacy')
     .setTitle('Privacy Masking Mode')
-    .addItem('Sync as Calendar Name (Mask details) [Default]', 'calendarName', !config || config.syncPrivacy === 'calendarName')
-    .addItem('Sync full details (Title, description, location)', 'full', config?.syncPrivacy === 'full')
+    .addItem(
+      'Sync as Calendar Name (Mask details) [Default]',
+      'calendarName',
+      !config || config.syncPrivacy === 'calendarName'
+    )
+    .addItem(
+      'Sync full details (Title, description, location)',
+      'full',
+      config?.syncPrivacy === 'full'
+    )
     .addItem("Sync as 'Busy' blocks only (Mask details)", 'busy', config?.syncPrivacy === 'busy');
   section.addWidget(privacySelect);
 
@@ -213,7 +212,11 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
   const busyOnlySelect = CardService.newSelectionInput()
     .setType(CardService.SelectionInputType.CHECK_BOX)
     .setFieldName('syncOnlyBusyEvents')
-    .addItem('Filter out Free/Optional availability events', 'true', isNew ? true : config.syncOnlyBusyEvents);
+    .addItem(
+      'Filter out Free/Optional availability events',
+      'true',
+      isNew ? true : config.syncOnlyBusyEvents
+    );
   section.addWidget(busyOnlySelect);
 
   // Sync range dropdown
@@ -221,18 +224,26 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     .setType(CardService.SelectionInputType.DROPDOWN)
     .setFieldName('syncRange')
     .setTitle('Time Sync Window')
-    .addItem('1 month back, 6 months forward', '1_6', !config || (config.syncRangeMonthsBack === 1 && config.syncRangeMonthsForward === 6))
-    .addItem('3 months back, 12 months forward', '3_12', config?.syncRangeMonthsBack === 3 && config?.syncRangeMonthsForward === 12);
+    .addItem(
+      '1 month back, 6 months forward',
+      '1_6',
+      !config || (config.syncRangeMonthsBack === 1 && config.syncRangeMonthsForward === 6)
+    )
+    .addItem(
+      '3 months back, 12 months forward',
+      '3_12',
+      config?.syncRangeMonthsBack === 3 && config?.syncRangeMonthsForward === 12
+    );
   section.addWidget(rangeSelect);
-
-
 
   // Action Buttons
   const saveAction = CardService.newAction()
     .setFunctionName('saveJobAction')
     .setParameters(config ? { jobId: config.id } : {});
 
-  const cancelAction = CardService.newAction().setFunctionName('openTool').setParameters({ toolId: 'calendarSync' });
+  const cancelAction = CardService.newAction()
+    .setFunctionName('openTool')
+    .setParameters({ toolId: 'calendarSync' });
 
   const footerButtons = CardService.newButtonSet()
     .addButton(
@@ -241,11 +252,7 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
         .setOnClickAction(saveAction)
     )
-    .addButton(
-      CardService.newTextButton()
-        .setText('Cancel')
-        .setOnClickAction(cancelAction)
-    );
+    .addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(cancelAction));
 
   section.addWidget(footerButtons);
   builder.addSection(section);
@@ -264,7 +271,9 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
   let targetCalendarId = form.targetCalendarId;
   const prefix = form.prefix || '';
   const syncPrivacy = form.syncPrivacy || 'full';
-  const syncOnlyBusyEvents = !!(formInputs.syncOnlyBusyEvents && formInputs.syncOnlyBusyEvents.includes('true'));
+  const syncOnlyBusyEvents = !!(
+    formInputs.syncOnlyBusyEvents && formInputs.syncOnlyBusyEvents.includes('true')
+  );
   const rangeVal = form.syncRange || '1_6';
   const syncMethod = 'hourly';
 
@@ -287,14 +296,20 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
 
   if (sourceCalendarIds.length === 0) {
     return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText('Error: Please select at least one source calendar.'))
+      .setNotification(
+        CardService.newNotification().setText('Error: Please select at least one source calendar.')
+      )
       .build();
   }
 
   // Prevent circular sync mapping
   if (targetCalendarId !== 'CREATE_NEW' && sourceCalendarIds.includes(targetCalendarId)) {
     return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText('Error: The Target Calendar cannot be one of the Source Calendars.'))
+      .setNotification(
+        CardService.newNotification().setText(
+          'Error: The Target Calendar cannot be one of the Source Calendars.'
+        )
+      )
       .build();
   }
 
@@ -322,8 +337,10 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     };
 
     // Determine if trigger rebuild is required
-    const sourcesChanged = !originalConfig ||
-      JSON.stringify(originalConfig.sourceCalendarIds.sort()) !== JSON.stringify(sourceCalendarIds.sort());
+    const sourcesChanged =
+      !originalConfig ||
+      JSON.stringify(originalConfig.sourceCalendarIds.sort()) !==
+        JSON.stringify(sourceCalendarIds.sort());
     const methodChanged = !originalConfig || originalConfig.syncMethod !== syncMethod;
 
     if (sourcesChanged || methodChanged) {
@@ -363,7 +380,9 @@ export function triggerSyncManual(e: any): GoogleAppsScript.Card_Service.ActionR
 
   if (!config) {
     return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification().setText('Error: Sync job configuration not found.'))
+      .setNotification(
+        CardService.newNotification().setText('Error: Sync job configuration not found.')
+      )
       .build();
   }
 
@@ -397,27 +416,25 @@ export function openDeleteJobConfirmCard(e: any): GoogleAppsScript.Card_Service.
   const configs = loadAllSyncConfigs();
   const config = configs.find((c) => c.id === jobId);
 
-  const builder = CardService.newCardBuilder()
-    .setHeader(
-      CardService.newCardHeader()
-        .setTitle('Confirm Deletion')
-        .setSubtitle(config ? config.name : '')
-    );
+  const builder = CardService.newCardBuilder().setHeader(
+    CardService.newCardHeader()
+      .setTitle('Confirm Deletion')
+      .setSubtitle(config ? config.name : '')
+  );
 
-  const section = CardService.newCardSection()
-    .addWidget(
-      CardService.newDecoratedText()
-        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
-        .setText('Are you sure you want to delete this Combined Calendar configuration?')
-        .setWrapText(true)
-    );
+  const section = CardService.newCardSection().addWidget(
+    CardService.newDecoratedText()
+      .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
+      .setText('Are you sure you want to delete this Combined Calendar configuration?')
+      .setWrapText(true)
+  );
 
   // Determine if the target is the user's primary/default calendar
   let isPrimary = false;
   if (config) {
     try {
       const defaultCalId = CalendarApp.getDefaultCalendar().getId();
-      isPrimary = (config.targetCalendarId === defaultCalId || config.targetCalendarId === 'primary');
+      isPrimary = config.targetCalendarId === defaultCalId || config.targetCalendarId === 'primary';
     } catch (err) {
       console.warn('Failed to identify if target is primary:', err);
     }
@@ -430,11 +447,19 @@ export function openDeleteJobConfirmCard(e: any): GoogleAppsScript.Card_Service.
 
   if (isPrimary) {
     // Primary calendars cannot be deleted, so we don't offer delete_calendar and default to delete_events
-    deleteSelect.addItem('Delete all previously synced events (Recommended)', 'delete_events', true);
+    deleteSelect.addItem(
+      'Delete all previously synced events (Recommended)',
+      'delete_events',
+      true
+    );
     deleteSelect.addItem('Keep target calendar and events', 'keep_all', false);
   } else {
     // Dedicated / secondary calendars can be deleted, default to delete_calendar
-    deleteSelect.addItem('Delete target calendar completely (Recommended)', 'delete_calendar', true);
+    deleteSelect.addItem(
+      'Delete target calendar completely (Recommended)',
+      'delete_calendar',
+      true
+    );
     deleteSelect.addItem('Delete all previously synced events only', 'delete_events', false);
     deleteSelect.addItem('Keep target calendar and events', 'keep_all', false);
   }
@@ -451,15 +476,9 @@ export function openDeleteJobConfirmCard(e: any): GoogleAppsScript.Card_Service.
 
   const buttonSet = CardService.newButtonSet()
     .addButton(
-      CardService.newTextButton()
-        .setText('Confirm Delete')
-        .setOnClickAction(confirmAction)
+      CardService.newTextButton().setText('Confirm Delete').setOnClickAction(confirmAction)
     )
-    .addButton(
-      CardService.newTextButton()
-        .setText('Cancel')
-        .setOnClickAction(cancelAction)
-    );
+    .addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(cancelAction));
 
   section.addWidget(buttonSet);
   builder.addSection(section);
@@ -485,7 +504,9 @@ export function deleteJobAction(e: any): GoogleAppsScript.Card_Service.ActionRes
     const homeCard = createCalendarSyncHomepage(e);
     return CardService.newActionResponseBuilder()
       .setNavigation(CardService.newNavigation().popToRoot().updateCard(homeCard))
-      .setNotification(CardService.newNotification().setText('Combined Calendar sync configuration deleted.'))
+      .setNotification(
+        CardService.newNotification().setText('Combined Calendar sync configuration deleted.')
+      )
       .build();
   } catch (err: any) {
     console.error('Failed to delete sync job:', err);
