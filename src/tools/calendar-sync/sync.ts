@@ -107,7 +107,7 @@ export function setupTriggers(config: SyncConfig): void {
       ScriptApp.newTrigger('handleHourlySync').timeBased().everyHours(1).create();
     } catch (err: any) {
       console.error('Failed to create hourly trigger:', err);
-      throw new Error(`Failed to create hourly trigger: ${err?.message || err}`);
+      throw new Error(`Failed to create hourly trigger: ${err?.message || err}`, { cause: err });
     }
   }
 }
@@ -151,10 +151,12 @@ export function cleanupTriggers(config: SyncConfig): void {
  * Runs the sync process for a combined calendar configuration.
  */
 export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string } {
+  console.log(`[Job ${config.id}] Starting runSyncJob execution.`);
   try {
     let targetCalId = config.targetCalendarId;
     if (targetCalId === 'CREATE_NEW') {
       try {
+        console.log(`[Job ${config.id}] Creating new target calendar named: ${config.name}`);
         const newCal = CalendarApp.createCalendar(config.name, {
           summary: `Target calendar created by Sticky Assistant for combined calendar: ${config.name}`,
         });
@@ -163,7 +165,8 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
         saveSyncConfig(config); // Save the resolved calendar ID
       } catch (calErr: any) {
         throw new Error(
-          `Failed to create new calendar '${config.name}': ${calErr?.message || calErr}`
+          `Failed to create new calendar '${config.name}': ${calErr?.message || calErr}`,
+          { cause: calErr }
         );
       }
     }
@@ -187,275 +190,74 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
         lastProcessedIndex: -1,
         inProgress: true,
       };
+      console.log(`[Job ${config.id}] Initialized new sync progress state.`);
     }
-
-    const nextIndex = config.syncProgress.lastProcessedIndex + 1;
-    if (nextIndex >= config.sourceCalendarIds.length) {
-      // All calendars processed, mark done
-      config.syncProgress.inProgress = false;
-      config.status = 'active';
-      config.lastSyncedAt = new Date().toISOString();
-      delete config.statusMessage;
-      saveSyncConfig(config);
-      return { ok: true };
-    }
-
-    const sourceCalId = config.sourceCalendarIds[nextIndex];
-    const sourceCalName = resolveCalendarName(sourceCalId);
-    config.statusMessage = `Syncing calendar ${nextIndex + 1}/${config.sourceCalendarIds.length}...`;
-    saveSyncConfig(config);
-
-    // 1. Fetch all existing target events in the time range
-    const targetEvents = targetCal.getEvents(startTime, endTime);
-
-    // 2. Map existing target events by their source key
-    // Optimization: Only map target events that originate from this specific source calendar
-    const targetEventsBySourceKey: Record<string, GoogleAppsScript.Calendar.CalendarEvent[]> = {};
-    targetEvents.forEach((event) => {
-      if (
-        event.getTag('syncJobId') === config.id &&
-        event.getTag('syncSourceCalendarId') === sourceCalId
-      ) {
-        const sourceKey = event.getTag('syncSourceEventId');
-        if (sourceKey) {
-          if (!targetEventsBySourceKey[sourceKey]) {
-            targetEventsBySourceKey[sourceKey] = [];
-          }
-          targetEventsBySourceKey[sourceKey].push(event);
-        }
-      }
-    });
-
-    const processedSourceKeys = new Set<string>();
-    config.syncTokens = config.syncTokens || {};
 
     const calService = (globalThis as any).Calendar;
     if (!calService || !calService.Events) {
       throw new Error('Calendar advanced service is not enabled. Please enable it in settings.');
     }
 
-    // 3. Sync events from this specific source calendar
-    let lastSyncToken = config.syncTokens ? config.syncTokens[sourceCalId] : undefined;
-    let pageToken: string | undefined = undefined;
-    let items: any[] = [];
-    let nextSyncToken: string | undefined = undefined;
-    let isFullSync = !lastSyncToken;
+    const startTimeLimit = new Date().getTime();
 
-    do {
-      const options: any = {
-        singleEvents: true,
-        maxResults: 250,
-      };
-      if (pageToken) {
-        options.pageToken = pageToken;
+    // Process all remaining source calendars in a single execution
+    while (
+      config.syncProgress &&
+      config.syncProgress.lastProcessedIndex + 1 < config.sourceCalendarIds.length
+    ) {
+      // Check elapsed time to prevent abrupt execution timeout (GAS limit is 6 minutes)
+      const elapsed = new Date().getTime() - startTimeLimit;
+      if (elapsed > 300000) {
+        console.warn(
+          `[Job ${config.id}] Sync job is close to timing out (elapsed: ${Math.round(
+            elapsed / 1000
+          )}s). Yielding to background trigger.`
+        );
+        enqueueBackgroundSync(config.id);
+        return { ok: true, message: 'Yielded due to execution time limit.' };
       }
 
-      if (isFullSync) {
-        options.timeMin = startTime.toISOString();
-        options.timeMax = endTime.toISOString();
-        options.showDeleted = false;
-      } else {
-        options.syncToken = lastSyncToken;
-        options.showDeleted = true;
-      }
+      const nextIndex: number = config.syncProgress.lastProcessedIndex + 1;
+      const sourceCalId = config.sourceCalendarIds[nextIndex];
+      const sourceCalName = resolveCalendarName(sourceCalId);
+      config.statusMessage = `Syncing calendar ${nextIndex + 1}/${config.sourceCalendarIds.length}...`;
+      saveSyncConfig(config);
 
-      let response: any;
       try {
-        response = calService.Events.list(sourceCalId, options);
-      } catch (err: any) {
-        const errMsg = err?.message || String(err);
-        if (
-          errMsg.includes('410') ||
-          errMsg.includes('Gone') ||
-          errMsg.includes('syncToken') ||
-          !isFullSync
-        ) {
-          console.warn(
-            `Sync token expired or invalid for calendar ${sourceCalId}. Re-running full sync.`,
-            err
-          );
-          isFullSync = true;
-          pageToken = undefined;
-          items = [];
-          continue;
-        } else {
-          throw err;
-        }
+        syncSingleSourceCalendar(
+          config,
+          sourceCalId,
+          sourceCalName,
+          targetCal,
+          startTime,
+          endTime,
+          calService
+        );
+      } catch (syncErr: any) {
+        console.error(`[Job ${config.id}] Error syncing calendar ${sourceCalName}:`, syncErr);
+        throw syncErr;
       }
 
-      if (response.items) {
-        items = items.concat(response.items);
+      // Update progress index
+      if (config.syncProgress) {
+        config.syncProgress.lastProcessedIndex = nextIndex;
       }
-      pageToken = response.nextPageToken;
-      nextSyncToken = response.nextSyncToken;
-    } while (pageToken);
-
-    if (nextSyncToken && config.syncTokens) {
-      config.syncTokens[sourceCalId] = nextSyncToken;
+      saveSyncConfig(config);
     }
 
-    // Process fetched events
-    items.forEach((sourceEvent) => {
-      const isDeleted = sourceEvent.status === 'cancelled';
-      const shouldSkip = config.syncOnlyBusyEvents && sourceEvent.transparency === 'transparent';
-
-      if (isDeleted || shouldSkip) {
-        // Deletion handling: remove matching target events
-        const targetEventsToDelete = targetEvents.filter((e) => {
-          if (e.getTag('syncJobId') !== config.id) return false;
-          if (e.getTag('syncSourceCalendarId') !== sourceCalId) return false;
-          const sourceKey = e.getTag('syncSourceEventId') || '';
-          return sourceKey === sourceEvent.id || sourceKey.startsWith(sourceEvent.id + '_');
-        });
-
-        targetEventsToDelete.forEach((e) => {
-          try {
-            e.deleteEvent();
-          } catch (delErr) {
-            console.warn(`Failed to delete cancelled event ${e.getId()}:`, delErr);
-          }
-        });
-        return;
-      }
-
-      // Determine start & end times
-      let start: Date;
-      let end: Date;
-      let isAllDay = false;
-
-      if (sourceEvent.start.date) {
-        start = new Date(sourceEvent.start.date);
-        end = new Date(sourceEvent.end.date);
-        isAllDay = true;
-      } else if (sourceEvent.start.dateTime) {
-        start = new Date(sourceEvent.start.dateTime);
-        end = new Date(sourceEvent.end.dateTime);
-      } else {
-        return; // Skip invalid events
-      }
-
-      const uniqueSourceKey = `${sourceEvent.id}_${start.getTime()}`;
-
-      // Verify if event is within our sync window
-      const inWindow = start >= startTime && start <= endTime;
-
-      if (!inWindow) {
-        // If event is shifted out of window, delete any existing target event
-        const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
-        existingEvents.forEach((e) => {
-          try {
-            e.deleteEvent();
-          } catch (delErr) {
-            console.warn(`Failed to delete out-of-bounds event ${e.getId()}:`, delErr);
-          }
-        });
-        return;
-      }
-
-      if (isFullSync) {
-        processedSourceKeys.add(uniqueSourceKey);
-      }
-
-      const isMasked = config.syncPrivacy === 'busy' || config.syncPrivacy === 'calendarName';
-      const eventTitle =
-        config.syncPrivacy === 'busy'
-          ? 'Busy'
-          : config.syncPrivacy === 'calendarName'
-            ? sourceCalName
-            : sourceEvent.summary || 'Untitled Event';
-      const title = config.prefix + eventTitle;
-      const description = isMasked ? '' : sourceEvent.description || '';
-      const location = isMasked ? '' : sourceEvent.location || '';
-
-      const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
-
-      if (existingEvents.length > 0) {
-        const targetEvent = existingEvents[0];
-        let needsUpdate = false;
-
-        if (targetEvent.getTitle() !== title) needsUpdate = true;
-        if (targetEvent.getDescription() !== description) needsUpdate = true;
-        if (targetEvent.getLocation() !== location) needsUpdate = true;
-        if (targetEvent.getStartTime().getTime() !== start.getTime()) needsUpdate = true;
-        if (targetEvent.getEndTime().getTime() !== end.getTime()) needsUpdate = true;
-        if (targetEvent.isAllDayEvent() !== isAllDay) needsUpdate = true;
-        if (targetEvent.getTag('syncSourceCalendarId') !== sourceCalId) needsUpdate = true;
-
-        if (needsUpdate) {
-          try {
-            if (isAllDay) {
-              targetEvent.setAllDayDates(start, end);
-            } else {
-              targetEvent.setTime(start, end);
-            }
-            targetEvent.setTitle(title);
-            targetEvent.setDescription(description);
-            targetEvent.setLocation(location);
-            targetEvent.setTag('syncSourceCalendarId', sourceCalId);
-          } catch (updateErr) {
-            console.error(`Failed to update target event for ${uniqueSourceKey}:`, updateErr);
-          }
-        }
-      } else {
-        // Create new target event
-        try {
-          let newEvent: GoogleAppsScript.Calendar.CalendarEvent;
-          if (isAllDay) {
-            newEvent = targetCal.createAllDayEvent(title, start, end, {
-              description,
-              location,
-            });
-          } else {
-            newEvent = targetCal.createEvent(title, start, end, {
-              description,
-              location,
-            });
-          }
-          newEvent.setTag('syncJobId', config.id);
-          newEvent.setTag('syncSourceEventId', uniqueSourceKey);
-          newEvent.setTag('syncSourceCalendarId', sourceCalId);
-        } catch (createErr) {
-          console.error(`Failed to create target event for ${uniqueSourceKey}:`, createErr);
-        }
-      }
-    });
-
-    // 4. Delete target events that were deleted in source calendars
-    // (ONLY for the specific source calendar if it performed a Full Sync)
-    if (isFullSync) {
-      Object.keys(targetEventsBySourceKey).forEach((key) => {
-        if (!processedSourceKeys.has(key)) {
-          const eventsToDelete = targetEventsBySourceKey[key];
-          eventsToDelete.forEach((event) => {
-            try {
-              event.deleteEvent();
-            } catch (deleteErr) {
-              console.error(`Failed to delete obsolete target event for ${key}:`, deleteErr);
-            }
-          });
-        }
-      });
-    }
-
-    // Update progress index
-    config.syncProgress.lastProcessedIndex = nextIndex;
-
-    // Check if we are done with all source calendars
-    if (nextIndex === config.sourceCalendarIds.length - 1) {
+    // All source calendars processed successfully, mark done
+    if (config.syncProgress) {
       config.syncProgress.inProgress = false;
-      config.status = 'active';
-      config.lastSyncedAt = new Date().toISOString();
-      delete config.statusMessage;
-      saveSyncConfig(config);
-    } else {
-      // Continue next source calendar in background
-      saveSyncConfig(config);
-      enqueueBackgroundSync(config.id);
     }
+    config.status = 'active';
+    config.lastSyncedAt = new Date().toISOString();
+    delete config.statusMessage;
+    saveSyncConfig(config);
 
+    console.info(`[Job ${config.id}] runSyncJob completed successfully.`);
     return { ok: true };
   } catch (err: any) {
-    console.error(`Sync failed for job ${config.id}:`, err);
+    console.error(`[Job ${config.id}] Sync failed:`, err);
     config.status = 'error';
     config.statusMessage = err?.message || String(err);
     if (config.syncProgress) {
@@ -463,6 +265,319 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
     }
     saveSyncConfig(config);
     return { ok: false, message: err?.message || String(err) };
+  }
+}
+
+/**
+ * Synchronizes events from a single source calendar to the target calendar.
+ */
+function syncSingleSourceCalendar(
+  config: SyncConfig,
+  sourceCalId: string,
+  sourceCalName: string,
+  targetCal: GoogleAppsScript.Calendar.Calendar,
+  startTime: Date,
+  endTime: Date,
+  calService: any
+): void {
+  console.log(
+    `[Job ${config.id}] Starting sync for source calendar: ${sourceCalName} (${sourceCalId})`
+  );
+
+  // 1. Fetch all existing target events in the time range
+  const targetEvents = targetCal.getEvents(startTime, endTime);
+
+  // 2. Map existing target events by their source key
+  // Optimization: Only map target events that originate from this specific source calendar
+  const targetEventsBySourceKey: Record<string, GoogleAppsScript.Calendar.CalendarEvent[]> = {};
+  targetEvents.forEach((event) => {
+    if (
+      event.getTag('syncJobId') === config.id &&
+      event.getTag('syncSourceCalendarId') === sourceCalId
+    ) {
+      const sourceKey = event.getTag('syncSourceEventId');
+      if (sourceKey) {
+        if (!targetEventsBySourceKey[sourceKey]) {
+          targetEventsBySourceKey[sourceKey] = [];
+        }
+        targetEventsBySourceKey[sourceKey].push(event);
+      }
+    }
+  });
+
+  const targetMappedCount = Object.keys(targetEventsBySourceKey).length;
+  console.log(
+    `[Job ${config.id}] Target calendar: found ${targetEvents.length} total events in range, ${targetMappedCount} mapped to this source.`
+  );
+
+  const processedSourceKeys = new Set<string>();
+  config.syncTokens = config.syncTokens || {};
+
+  // 3. Sync events from this specific source calendar
+  let lastSyncToken: string | undefined = config.syncTokens[sourceCalId];
+  let pageToken: string | undefined = undefined;
+  let items: any[] = [];
+  let nextSyncToken: string | undefined = undefined;
+  let isFullSync = !lastSyncToken;
+
+  console.log(`[Job ${config.id}] Sync type: ${isFullSync ? 'Full Sync' : 'Incremental Sync'}`);
+
+  do {
+    const options: any = {
+      singleEvents: true,
+      maxResults: 250,
+    };
+    if (pageToken) {
+      options.pageToken = pageToken;
+    }
+
+    if (isFullSync) {
+      options.timeMin = startTime.toISOString();
+      options.timeMax = endTime.toISOString();
+      options.showDeleted = false;
+    } else {
+      options.syncToken = lastSyncToken;
+      options.showDeleted = true;
+    }
+
+    let response: any;
+    try {
+      response = calService.Events.list(sourceCalId, options);
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if (
+        errMsg.includes('410') ||
+        errMsg.includes('Gone') ||
+        errMsg.includes('syncToken') ||
+        !isFullSync
+      ) {
+        console.warn(
+          `[Job ${config.id}] Sync token expired or invalid for calendar ${sourceCalId}. Re-running full sync.`,
+          err
+        );
+        isFullSync = true;
+        pageToken = undefined;
+        items = [];
+        lastSyncToken = undefined;
+        continue;
+      } else {
+        throw err;
+      }
+    }
+
+    if (response.items) {
+      items = items.concat(response.items);
+    }
+    pageToken = response.nextPageToken;
+    nextSyncToken = response.nextSyncToken;
+  } while (pageToken);
+
+  if (nextSyncToken) {
+    config.syncTokens[sourceCalId] = nextSyncToken;
+  }
+
+  console.log(`[Job ${config.id}] Retrieved ${items.length} events from source calendar.`);
+
+  const stats = { created: 0, updated: 0, unchanged: 0, deleted: 0 };
+
+  // Process fetched events
+  items.forEach((sourceEvent) => {
+    processSourceEvent(
+      sourceEvent,
+      config,
+      sourceCalId,
+      sourceCalName,
+      targetCal,
+      targetEvents,
+      startTime,
+      endTime,
+      targetEventsBySourceKey,
+      processedSourceKeys,
+      isFullSync,
+      stats
+    );
+  });
+
+  // 4. Delete target events that were deleted in source calendars
+  // (ONLY for the specific source calendar if it performed a Full Sync)
+  if (isFullSync) {
+    Object.keys(targetEventsBySourceKey).forEach((key) => {
+      if (!processedSourceKeys.has(key)) {
+        const eventsToDelete = targetEventsBySourceKey[key];
+        eventsToDelete.forEach((event) => {
+          try {
+            event.deleteEvent();
+            stats.deleted++;
+          } catch (deleteErr) {
+            console.error(
+              `[Job ${config.id}] Failed to delete obsolete target event for ${key}:`,
+              deleteErr
+            );
+          }
+        });
+      }
+    });
+  }
+
+  console.info(
+    `[Job ${config.id}] Completed calendar sync for: ${sourceCalName}. ` +
+      `Created: ${stats.created}, Updated: ${stats.updated}, Unchanged: ${stats.unchanged}, Deleted: ${stats.deleted}`
+  );
+}
+
+/**
+ * Processes a single event from the source calendar and updates/creates the target event.
+ */
+function processSourceEvent(
+  sourceEvent: any,
+  config: SyncConfig,
+  sourceCalId: string,
+  sourceCalName: string,
+  targetCal: GoogleAppsScript.Calendar.Calendar,
+  targetEvents: GoogleAppsScript.Calendar.CalendarEvent[],
+  startTime: Date,
+  endTime: Date,
+  targetEventsBySourceKey: Record<string, GoogleAppsScript.Calendar.CalendarEvent[]>,
+  processedSourceKeys: Set<string>,
+  isFullSync: boolean,
+  stats: { created: number; updated: number; unchanged: number; deleted: number }
+): void {
+  const isDeleted = sourceEvent.status === 'cancelled';
+  const shouldSkip = config.syncOnlyBusyEvents && sourceEvent.transparency === 'transparent';
+
+  if (isDeleted || shouldSkip) {
+    // Deletion handling: remove matching target events
+    const targetEventsToDelete = targetEvents.filter((e) => {
+      if (e.getTag('syncJobId') !== config.id) return false;
+      if (e.getTag('syncSourceCalendarId') !== sourceCalId) return false;
+      const sourceKey = e.getTag('syncSourceEventId') || '';
+      return sourceKey === sourceEvent.id || sourceKey.startsWith(sourceEvent.id + '_');
+    });
+
+    targetEventsToDelete.forEach((e) => {
+      try {
+        e.deleteEvent();
+        stats.deleted++;
+      } catch (delErr) {
+        console.warn(`[Job ${config.id}] Failed to delete cancelled event ${e.getId()}:`, delErr);
+      }
+    });
+    return;
+  }
+
+  // Determine start & end times
+  let start: Date;
+  let end: Date;
+  let isAllDay = false;
+
+  if (sourceEvent.start.date) {
+    start = new Date(sourceEvent.start.date);
+    end = new Date(sourceEvent.end.date);
+    isAllDay = true;
+  } else if (sourceEvent.start.dateTime) {
+    start = new Date(sourceEvent.start.dateTime);
+    end = new Date(sourceEvent.end.dateTime);
+  } else {
+    return; // Skip invalid events
+  }
+
+  const uniqueSourceKey = `${sourceEvent.id}_${start.getTime()}`;
+
+  // Verify if event is within our sync window
+  const inWindow = start >= startTime && start <= endTime;
+
+  if (!inWindow) {
+    // If event is shifted out of window, delete any existing target event
+    const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
+    existingEvents.forEach((e) => {
+      try {
+        e.deleteEvent();
+        stats.deleted++;
+      } catch (delErr) {
+        console.warn(
+          `[Job ${config.id}] Failed to delete out-of-bounds event ${e.getId()}:`,
+          delErr
+        );
+      }
+    });
+    return;
+  }
+
+  if (isFullSync) {
+    processedSourceKeys.add(uniqueSourceKey);
+  }
+
+  const isMasked = config.syncPrivacy === 'busy' || config.syncPrivacy === 'calendarName';
+  const eventTitle =
+    config.syncPrivacy === 'busy'
+      ? 'Busy'
+      : config.syncPrivacy === 'calendarName'
+        ? config.customCalendarNames?.[sourceCalId] || sourceCalName
+        : sourceEvent.summary || 'Untitled Event';
+  const title = config.prefix + eventTitle;
+  const description = isMasked ? '' : sourceEvent.description || '';
+  const location = isMasked ? '' : sourceEvent.location || '';
+
+  const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
+
+  if (existingEvents.length > 0) {
+    const targetEvent = existingEvents[0];
+    let needsUpdate = false;
+
+    if (targetEvent.getTitle() !== title) needsUpdate = true;
+    if (targetEvent.getDescription() !== description) needsUpdate = true;
+    if (targetEvent.getLocation() !== location) needsUpdate = true;
+    if (targetEvent.getStartTime().getTime() !== start.getTime()) needsUpdate = true;
+    if (targetEvent.getEndTime().getTime() !== end.getTime()) needsUpdate = true;
+    if (targetEvent.isAllDayEvent() !== isAllDay) needsUpdate = true;
+    if (targetEvent.getTag('syncSourceCalendarId') !== sourceCalId) needsUpdate = true;
+
+    if (needsUpdate) {
+      try {
+        if (isAllDay) {
+          targetEvent.setAllDayDates(start, end);
+        } else {
+          targetEvent.setTime(start, end);
+        }
+        targetEvent.setTitle(title);
+        targetEvent.setDescription(description);
+        targetEvent.setLocation(location);
+        targetEvent.setTag('syncSourceCalendarId', sourceCalId);
+        stats.updated++;
+      } catch (updateErr) {
+        console.error(
+          `[Job ${config.id}] Failed to update target event for ${uniqueSourceKey}:`,
+          updateErr
+        );
+      }
+    } else {
+      stats.unchanged++;
+    }
+  } else {
+    // Create new target event
+    try {
+      let newEvent: GoogleAppsScript.Calendar.CalendarEvent;
+      if (isAllDay) {
+        newEvent = targetCal.createAllDayEvent(title, start, end, {
+          description,
+          location,
+        });
+      } else {
+        newEvent = targetCal.createEvent(title, start, end, {
+          description,
+          location,
+        });
+      }
+      newEvent.setTag('syncJobId', config.id);
+      newEvent.setTag('syncSourceEventId', uniqueSourceKey);
+      newEvent.setTag('syncSourceCalendarId', sourceCalId);
+      stats.created++;
+    } catch (createErr) {
+      console.error(
+        `[Job ${config.id}] Failed to create target event for ${uniqueSourceKey}:`,
+        createErr
+      );
+    }
   }
 }
 
@@ -637,4 +752,20 @@ function executeDeletionLogic(jobId: string, targetCalendarId: string, deleteOpt
   } else if (deleteOption === 'delete_events') {
     cleanupTargetEventsById(jobId, targetCalendarId);
   }
+}
+
+/**
+ * Formats a prefix string to be wrapped in square brackets, with leading/trailing brackets/spaces stripped first.
+ */
+export function formatPrefix(prefix: string): string {
+  if (!prefix) return '';
+  let clean = prefix.trim();
+  while (clean.startsWith('[')) {
+    clean = clean.substring(1).trim();
+  }
+  while (clean.endsWith(']')) {
+    clean = clean.substring(0, clean.length - 1).trim();
+  }
+  if (!clean) return '';
+  return `[${clean}] `;
 }

@@ -14,7 +14,7 @@ import {
   saveSyncConfig,
   deleteSyncConfig,
   setupTriggers,
-  cleanupTriggers,
+  formatPrefix,
 } from './sync';
 import { SyncConfig } from './types';
 
@@ -85,7 +85,6 @@ describe('Calendar Sync Core Logic (Always Hourly)', () => {
     syncOnlyBusyEvents: true,
     syncRangeMonthsBack: 1,
     syncRangeMonthsForward: 6,
-    syncMethod: 'hourly',
     triggerIds: {},
   };
 
@@ -132,5 +131,25 @@ describe('Calendar Sync Core Logic (Always Hourly)', () => {
 
     // Should only have created 1 hourly trigger
     expect(mockTriggers.length).toBe(1);
+  });
+
+  describe('formatPrefix helper function', () => {
+    it('should wrap a clean prefix in square brackets and add a space', () => {
+      expect(formatPrefix('Work')).toBe('[Work] ');
+    });
+
+    it('should strip existing square brackets and spaces from the input and format correctly', () => {
+      expect(formatPrefix('[Work]')).toBe('[Work] ');
+      expect(formatPrefix('  [Work]  ')).toBe('[Work] ');
+      expect(formatPrefix('[[Work]]')).toBe('[Work] ');
+      expect(formatPrefix('[Work')).toBe('[Work] ');
+      expect(formatPrefix('Work]')).toBe('[Work] ');
+    });
+
+    it('should return empty string if empty prefix is provided', () => {
+      expect(formatPrefix('')).toBe('');
+      expect(formatPrefix('   ')).toBe('');
+      expect(formatPrefix('[]')).toBe('');
+    });
   });
 });

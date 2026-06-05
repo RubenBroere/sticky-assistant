@@ -8,7 +8,6 @@ export interface SyncConfig {
   syncOnlyBusyEvents: boolean; // If true, skip events marked transparent/free
   syncRangeMonthsBack: number; // Time range: months in past to look back
   syncRangeMonthsForward: number; // Time range: months in future to look forward
-  syncMethod: 'realtime' | 'hourly'; // Execution strategy: realtime trigger vs hourly batch
   triggerIds: Record<string, string>; // Map of sourceCalendarId -> script trigger UID
   lastSyncedAt?: string; // ISO Timestamp of the last sync run
   status?: 'active' | 'error'; // Status of sync job
@@ -18,4 +17,5 @@ export interface SyncConfig {
     lastProcessedIndex: number;
     inProgress: boolean;
   };
+  customCalendarNames?: Record<string, string>; // Maps sourceCalendarId -> custom name for "calendarName" privacy mode
 }

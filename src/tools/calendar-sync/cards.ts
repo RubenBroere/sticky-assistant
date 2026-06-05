@@ -5,9 +5,9 @@ import {
   loadAllSyncConfigs,
   saveSyncConfig,
   deleteSyncConfig,
-  runSyncJob,
   setupTriggers,
   enqueueBackgroundSync,
+  formatPrefix,
 } from './sync';
 import { getCalendarNamesMap, resolveCalendarName } from './names';
 
@@ -39,7 +39,7 @@ export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Servic
     );
   } else {
     configs.forEach((config) => {
-      let statusStr = '';
+      let statusStr: string;
       if (config.status === 'active') {
         const lastSync = config.lastSyncedAt
           ? new Date(config.lastSyncedAt).toLocaleTimeString()
@@ -116,6 +116,13 @@ export function openEditJobCard(e: any): GoogleAppsScript.Card_Service.Card {
   const configs = loadAllSyncConfigs();
   const config = configs.find((c) => c.id === jobId);
   return createEditSyncJobCard(config || null);
+}
+
+/**
+ * Helper to encode calendar ID into a safe alphanumeric field name for form inputs.
+ */
+function encodeIdForField(id: string): string {
+  return 'customName_' + Utilities.base64EncodeWebSafe(id).replace(/=/g, '');
 }
 
 /**
@@ -257,6 +264,27 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
   section.addWidget(footerButtons);
   builder.addSection(section);
 
+  // Custom Calendar Names Collapsible Section
+  const customNamesSection = CardService.newCardSection()
+    .setHeader('Custom Names (Optional)')
+    .setCollapsible(true);
+
+  calendars.forEach((cal) => {
+    const id = cal.getId();
+    const displayName = namesMap[id] || cal.getName() || id;
+    const fieldName = encodeIdForField(id);
+    const existingVal = config?.customCalendarNames?.[id] || '';
+
+    customNamesSection.addWidget(
+      CardService.newTextInput()
+        .setFieldName(fieldName)
+        .setTitle(`Name for: ${displayName}`)
+        .setHint('Custom name used in "Sync as Calendar Name" privacy mode')
+        .setValue(existingVal)
+    );
+  });
+  builder.addSection(customNamesSection);
+
   return builder.build();
 }
 
@@ -268,14 +296,13 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
   const formInputs = e.formInputs || {};
   const name = form.name ? form.name.trim() : '';
   const sourceCalendarIds = formInputs.sourceCalendarIds || [];
-  let targetCalendarId = form.targetCalendarId;
+  const targetCalendarId = form.targetCalendarId;
   const prefix = form.prefix || '';
   const syncPrivacy = form.syncPrivacy || 'full';
   const syncOnlyBusyEvents = !!(
     formInputs.syncOnlyBusyEvents && formInputs.syncOnlyBusyEvents.includes('true')
   );
   const rangeVal = form.syncRange || '1_6';
-  const syncMethod = 'hourly';
 
   // Extract range values
   let syncRangeMonthsBack = 1;
@@ -283,6 +310,25 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
   if (rangeVal === '3_12') {
     syncRangeMonthsBack = 3;
     syncRangeMonthsForward = 12;
+  }
+
+  // Format prefix to [PREFIX] with any typed brackets/spaces stripped first
+  const formattedPrefix = formatPrefix(prefix);
+
+  // Extract custom calendar names
+  const customCalendarNames: Record<string, string> = {};
+  try {
+    const calendars = CalendarApp.getAllCalendars();
+    calendars.forEach((cal) => {
+      const id = cal.getId();
+      const fieldName = encodeIdForField(id);
+      const val = form[fieldName] ? form[fieldName].trim() : '';
+      if (val) {
+        customCalendarNames[id] = val;
+      }
+    });
+  } catch (err) {
+    console.warn('Failed to extract custom calendar names:', err);
   }
 
   const existingJobId = e.parameters.jobId;
@@ -325,25 +371,71 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
       name,
       sourceCalendarIds,
       targetCalendarId,
-      prefix,
+      prefix: formattedPrefix,
       syncPrivacy,
       syncOnlyBusyEvents,
       syncRangeMonthsBack,
       syncRangeMonthsForward,
-      syncMethod,
-      triggerIds: originalConfig ? originalConfig.triggerIds : {},
+      triggerIds: originalConfig ? originalConfig.triggerIds || {} : {},
+      syncTokens: originalConfig ? originalConfig.syncTokens || {} : {},
+      customCalendarNames,
       status: originalConfig ? originalConfig.status : undefined,
       lastSyncedAt: originalConfig ? originalConfig.lastSyncedAt : undefined,
     };
+
+    // Determine if settings changed to reset sync tokens and force full sync
+    let hasSettingsChanged = false;
+    if (originalConfig) {
+      const origPrefix = originalConfig.prefix || '';
+      const origPrivacy = originalConfig.syncPrivacy || 'full';
+      const origBusyOnly = !!originalConfig.syncOnlyBusyEvents;
+      const origBack = originalConfig.syncRangeMonthsBack ?? 1;
+      const origForward = originalConfig.syncRangeMonthsForward ?? 6;
+      const origSources = originalConfig.sourceCalendarIds || [];
+      const origCustomNames = originalConfig.customCalendarNames || {};
+
+      if (origPrefix !== formattedPrefix) hasSettingsChanged = true;
+      if (origPrivacy !== syncPrivacy) hasSettingsChanged = true;
+      if (origBusyOnly !== syncOnlyBusyEvents) hasSettingsChanged = true;
+      if (origBack !== syncRangeMonthsBack) hasSettingsChanged = true;
+      if (origForward !== syncRangeMonthsForward) hasSettingsChanged = true;
+
+      // Compare source calendars list
+      if (
+        origSources.length !== sourceCalendarIds.length ||
+        !sourceCalendarIds.every((id: string) => origSources.includes(id))
+      ) {
+        hasSettingsChanged = true;
+      }
+
+      // Compare custom calendar names
+      const allSourceCalIds = Array.from(new Set([...origSources, ...sourceCalendarIds]));
+      for (const id of allSourceCalIds) {
+        if ((origCustomNames[id] || '') !== (customCalendarNames[id] || '')) {
+          hasSettingsChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (hasSettingsChanged) {
+      newConfig.syncTokens = {};
+      newConfig.syncProgress = {
+        lastProcessedIndex: -1,
+        inProgress: false,
+      };
+      if (newConfig.statusMessage) {
+        delete newConfig.statusMessage;
+      }
+    }
 
     // Determine if trigger rebuild is required
     const sourcesChanged =
       !originalConfig ||
       JSON.stringify(originalConfig.sourceCalendarIds.sort()) !==
         JSON.stringify(sourceCalendarIds.sort());
-    const methodChanged = !originalConfig || originalConfig.syncMethod !== syncMethod;
 
-    if (sourcesChanged || methodChanged) {
+    if (sourcesChanged) {
       setupTriggers(newConfig);
     }
 
