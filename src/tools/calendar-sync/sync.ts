@@ -269,6 +269,40 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
 }
 
 /**
+ * Safely retrieves the custom calendar name, checking both the direct ID (e.g. email) and fallback "primary".
+ */
+function getCustomCalendarName(
+  config: SyncConfig,
+  sourceCalId: string,
+  defaultName: string
+): string {
+  if (!config.customCalendarNames) return defaultName;
+  if (config.customCalendarNames[sourceCalId]) {
+    return config.customCalendarNames[sourceCalId];
+  }
+  if (sourceCalId === 'primary') {
+    try {
+      const primaryEmail = CalendarApp.getDefaultCalendar().getId();
+      if (config.customCalendarNames[primaryEmail]) {
+        return config.customCalendarNames[primaryEmail];
+      }
+    } catch {
+      // Ignore
+    }
+  } else {
+    try {
+      const primaryEmail = CalendarApp.getDefaultCalendar().getId();
+      if (sourceCalId === primaryEmail && config.customCalendarNames['primary']) {
+        return config.customCalendarNames['primary'];
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return defaultName;
+}
+
+/**
  * Synchronizes events from a single source calendar to the target calendar.
  */
 function syncSingleSourceCalendar(
@@ -280,8 +314,9 @@ function syncSingleSourceCalendar(
   endTime: Date,
   calService: any
 ): void {
+  const sourceCalDisplayName = getCustomCalendarName(config, sourceCalId, sourceCalName);
   console.log(
-    `[Job ${config.id}] Starting sync for source calendar: ${sourceCalName} (${sourceCalId})`
+    `[Job ${config.id}] Starting sync for source calendar: ${sourceCalDisplayName} (${sourceCalId})`
   );
 
   // 1. Fetch all existing target events in the time range
@@ -386,7 +421,7 @@ function syncSingleSourceCalendar(
       sourceEvent,
       config,
       sourceCalId,
-      sourceCalName,
+      sourceCalDisplayName,
       targetCal,
       targetEvents,
       startTime,
@@ -420,7 +455,7 @@ function syncSingleSourceCalendar(
   }
 
   console.info(
-    `[Job ${config.id}] Completed calendar sync for: ${sourceCalName}. ` +
+    `[Job ${config.id}] Completed calendar sync for: ${sourceCalDisplayName}. ` +
       `Created: ${stats.created}, Updated: ${stats.updated}, Unchanged: ${stats.unchanged}, Deleted: ${stats.deleted}`
   );
 }
@@ -512,7 +547,7 @@ function processSourceEvent(
     config.syncPrivacy === 'busy'
       ? 'Busy'
       : config.syncPrivacy === 'calendarName'
-        ? config.customCalendarNames?.[sourceCalId] || sourceCalName
+        ? sourceCalName
         : sourceEvent.summary || 'Untitled Event';
   const title = config.prefix + eventTitle;
   const description = isMasked ? '' : sourceEvent.description || '';
@@ -534,15 +569,38 @@ function processSourceEvent(
 
     if (needsUpdate) {
       try {
-        if (isAllDay) {
-          targetEvent.setAllDayDates(start, end);
-        } else {
-          targetEvent.setTime(start, end);
+        // Only update time if it has changed
+        if (targetEvent.isAllDayEvent() !== isAllDay) {
+          if (isAllDay) {
+            targetEvent.setAllDayDates(start, end);
+          } else {
+            targetEvent.setTime(start, end);
+          }
+        } else if (
+          targetEvent.getStartTime().getTime() !== start.getTime() ||
+          targetEvent.getEndTime().getTime() !== end.getTime()
+        ) {
+          if (isAllDay) {
+            targetEvent.setAllDayDates(start, end);
+          } else {
+            targetEvent.setTime(start, end);
+          }
         }
-        targetEvent.setTitle(title);
-        targetEvent.setDescription(description);
-        targetEvent.setLocation(location);
-        targetEvent.setTag('syncSourceCalendarId', sourceCalId);
+
+        // Only update text properties that have changed
+        if (targetEvent.getTitle() !== title) {
+          targetEvent.setTitle(title);
+        }
+        if (targetEvent.getDescription() !== description) {
+          targetEvent.setDescription(description);
+        }
+        if (targetEvent.getLocation() !== location) {
+          targetEvent.setLocation(location);
+        }
+        if (targetEvent.getTag('syncSourceCalendarId') !== sourceCalId) {
+          targetEvent.setTag('syncSourceCalendarId', sourceCalId);
+        }
+
         stats.updated++;
       } catch (updateErr) {
         console.error(
