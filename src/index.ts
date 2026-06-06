@@ -2,7 +2,7 @@
 export * from './triggers';
 
 // Core UI & Selection Navigation Callbacks
-export { openTool } from './core/triggerHandler';
+export { openTool, openToolSelector } from './core/triggerHandler';
 export {
   buildUnifiedSettingsCard,
   saveIndividualSetting,

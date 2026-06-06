@@ -69,7 +69,7 @@ export function buildToolFooter(
     );
   }
 
-  const backAction = CardService.newAction().setFunctionName('onDefaultHomepage');
+  const backAction = CardService.newAction().setFunctionName('openToolSelector');
   section.addWidget(
     CardService.newDecoratedText()
       .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.info))

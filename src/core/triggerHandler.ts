@@ -148,3 +148,20 @@ export function buildToolSelectorCard(e: GoogleAppsScript.Addons.EventObject, ev
 
   return builder.build();
 }
+
+/**
+ * Action callback that routes the user to the correct homepage tool selector
+ * based on the host application context (Calendar, Docs, Drive, or Default).
+ */
+export function openToolSelector(e: any): GoogleAppsScript.Card_Service.Card {
+  const hostApp = e?.commonEventObject?.hostApp;
+  let event = TriggerEvent.DEFAULT_HOMEPAGE;
+  if (hostApp === 'CALENDAR') {
+    event = TriggerEvent.CALENDAR_HOMEPAGE;
+  } else if (hostApp === 'DOCS') {
+    event = TriggerEvent.DOCS_HOMEPAGE;
+  } else if (hostApp === 'DRIVE') {
+    event = TriggerEvent.DRIVE_HOMEPAGE;
+  }
+  return buildToolSelectorCard(e, event);
+}

@@ -19,7 +19,7 @@ const TOOL_META = {
 /**
  * Renders the home dashboard card listing all active sync jobs.
  */
-export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Service.Card {
+export function createCalendarSyncHomepage(_e: any): GoogleAppsScript.Card_Service.Card {
   const builder = buildToolCard(
     TOOL_META,
     'Combine multiple calendars into one target calendar and keep them synchronized.'
@@ -103,7 +103,7 @@ function getCalendarNameSafely(calendarId: string): string {
 /**
  * Navigates to the Create configuration card.
  */
-export function openCreateJobCard(e: any): GoogleAppsScript.Card_Service.Card {
+export function openCreateJobCard(_e: any): GoogleAppsScript.Card_Service.Card {
   return createEditSyncJobCard(null);
 }
 

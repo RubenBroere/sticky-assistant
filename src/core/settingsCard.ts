@@ -264,7 +264,7 @@ export function buildUnifiedSettingsCard(e?: {
     });
 
     const actionSection = CardService.newCardSection();
-    const backAction = CardService.newAction().setFunctionName('onDefaultHomepage');
+    const backAction = CardService.newAction().setFunctionName('openToolSelector');
     actionSection.addWidget(
       CardService.newTextButton().setText('Back to Home').setOnClickAction(backAction)
     );
