@@ -15,14 +15,11 @@ const tool: Tool = {
     {
       event: TriggerEvent.DEFAULT_HOMEPAGE,
       createCard: onCommitteeHomepage,
-      enabled: (e) => e.commonEventObject.hostApp === 'DRIVE',
     },
     {
       event: TriggerEvent.ITEMS_SELECTED,
       createCard: onDriveSelection,
       enabled: (e) => {
-        if (e.commonEventObject.hostApp !== 'DRIVE') return false;
-
         // Only enable if a single folder is selected
         const selectedItems = e.drive?.selectedItems ?? [];
         return (

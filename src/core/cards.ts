@@ -43,7 +43,7 @@ export function buildStatusCard(
       .setWrapText(true)
   );
 
-  const backAction = CardService.newAction().setFunctionName('onDefaultHomepage');
+  const backAction = CardService.newAction().setFunctionName('openToolSelector');
   section.addWidget(
     CardService.newTextButton()
       .setText('Back to Home')

@@ -16,14 +16,11 @@ const tool: Tool = {
     {
       event: TriggerEvent.DEFAULT_HOMEPAGE,
       createCard: createCommentsExtractorHomepage,
-      enabled: (e) => e.commonEventObject.hostApp === 'DRIVE',
     },
     {
       event: TriggerEvent.ITEMS_SELECTED,
       createCard: createCommentsExtractorHomepage,
       enabled: (e) => {
-        if (e.commonEventObject.hostApp !== 'DRIVE') return false;
-
         // Only enable if a single PDF file is selected
         const selectedItems = e.drive?.selectedItems ?? [];
         return (

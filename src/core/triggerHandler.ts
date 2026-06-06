@@ -7,6 +7,9 @@ type TriggerEventObject = GoogleAppsScript.Addons.EventObject & {
 };
 
 function isEnabled(trigger: ToolTrigger, e: GoogleAppsScript.Addons.EventObject) {
+  if (!trigger.enabled) {
+    return true;
+  }
   try {
     return trigger.enabled(e);
   } catch {
@@ -25,12 +28,12 @@ function getMatchingTriggers(event: TriggerEvent, e: GoogleAppsScript.Addons.Eve
  * Dynamically deduces the host app or Drive folder/file selection required for a tool.
  */
 function getRequiredServiceDescription(tool: Tool): string {
+  // Check if any trigger is Calendar homepage
+  const hasCalendar = tool.triggers.some((t) => t.event === TriggerEvent.CALENDAR_HOMEPAGE);
+  if (hasCalendar) return 'Google Calendar';
+
   // Check if any trigger is Docs homepage
-  const hasDocs = tool.triggers.some(
-    (t) =>
-      t.event === TriggerEvent.DOCS_HOMEPAGE ||
-      (t.enabled && t.enabled({ commonEventObject: { hostApp: 'DOCS' } } as any))
-  );
+  const hasDocs = tool.triggers.some((t) => t.event === TriggerEvent.DOCS_HOMEPAGE);
   if (hasDocs) return 'Google Docs';
 
   // Check if any trigger requires specific Drive selection
@@ -45,11 +48,7 @@ function getRequiredServiceDescription(tool: Tool): string {
     return 'Google Drive (Select items)';
   }
 
-  const hasDrive = tool.triggers.some(
-    (t) =>
-      t.event === TriggerEvent.DRIVE_HOMEPAGE ||
-      (t.enabled && t.enabled({ commonEventObject: { hostApp: 'DRIVE' } } as any))
-  );
+  const hasDrive = tool.triggers.some((t) => t.event === TriggerEvent.DRIVE_HOMEPAGE);
   if (hasDrive) return 'Google Drive';
 
   return 'Google Workspace';
@@ -148,4 +147,21 @@ export function buildToolSelectorCard(e: GoogleAppsScript.Addons.EventObject, ev
   }
 
   return builder.build();
+}
+
+/**
+ * Action callback that routes the user to the correct homepage tool selector
+ * based on the host application context (Calendar, Docs, Drive, or Default).
+ */
+export function openToolSelector(e: any): GoogleAppsScript.Card_Service.Card {
+  const hostApp = e?.commonEventObject?.hostApp;
+  let event = TriggerEvent.DEFAULT_HOMEPAGE;
+  if (hostApp === 'CALENDAR') {
+    event = TriggerEvent.CALENDAR_HOMEPAGE;
+  } else if (hostApp === 'DOCS') {
+    event = TriggerEvent.DOCS_HOMEPAGE;
+  } else if (hostApp === 'DRIVE') {
+    event = TriggerEvent.DRIVE_HOMEPAGE;
+  }
+  return buildToolSelectorCard(e, event);
 }

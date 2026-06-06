@@ -2,7 +2,7 @@
 export * from './triggers';
 
 // Core UI & Selection Navigation Callbacks
-export { openTool } from './core/triggerHandler';
+export { openTool, openToolSelector } from './core/triggerHandler';
 export {
   buildUnifiedSettingsCard,
   saveIndividualSetting,
@@ -24,3 +24,26 @@ export { exportCommentsToSheet } from './tools/comments-extractor/cards';
 
 // Committee Creator Callbacks
 export { onDriveSelection, runScan, runExecution } from './tools/committee-creator/editing';
+
+// Calendar Sync Callbacks & Triggers
+export {
+  openCreateJobCard,
+  openEditJobCard,
+  saveJobAction,
+  triggerSyncManual,
+  openDeleteJobConfirmCard,
+  deleteJobAction,
+} from './tools/calendar-sync/cards';
+export {
+  handleHourlySync,
+  handleBackgroundInitialSync,
+  handleBackgroundDeletion,
+} from './tools/calendar-sync/sync';
+
+// Properties Debugger Callbacks
+export {
+  openEditPropertyCard,
+  savePropertyAction,
+  openDeletePropertyConfirmCard,
+  deletePropertyAction,
+} from './tools/properties-debugger/cards';
