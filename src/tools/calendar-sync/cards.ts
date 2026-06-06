@@ -1,13 +1,12 @@
 import { buildToolCard, buildToolFooter } from '../../core/cardTemplate';
 import { COLORS } from '../../core/branding';
-import { SyncConfig } from './types';
+import { SyncConfig, SourceCalendarConf } from './types';
 import {
   loadAllSyncConfigs,
   saveSyncConfig,
   deleteSyncConfig,
   setupTriggers,
   enqueueBackgroundSync,
-  formatPrefix,
 } from './sync';
 import { getCalendarNamesMap, resolveCalendarName } from './names';
 
@@ -52,9 +51,9 @@ export function createCalendarSyncHomepage(e: any): GoogleAppsScript.Card_Servic
       }
 
       const detailText =
-        `<b>${config.name}</b>\n` +
+        `<b>${config.calendar_name}</b>\n` +
         `Target: ${getCalendarNameSafely(config.targetCalendarId)}\n` +
-        `Sources: ${config.sourceCalendarIds.length} calendars\n` +
+        `Sources: ${Object.keys(config.sourceCalendars || {}).length} calendars\n` +
         `Status: ${statusStr}`;
 
       const editAction = CardService.newAction()
@@ -133,68 +132,66 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
   const builder = CardService.newCardBuilder().setHeader(
     CardService.newCardHeader()
       .setTitle(isNew ? 'Create Combined Calendar' : 'Edit Combined Calendar')
-      .setSubtitle(isNew ? 'Define sync sources and targets' : `Modify ${config.name}`)
+      .setSubtitle(isNew ? 'Define sync sources and targets' : `Modify ${config.calendar_name}`)
   );
 
-  const section = CardService.newCardSection();
+  const mainSettingsSection = CardService.newCardSection().setHeader('General Settings');
 
   // Name Input
-  section.addWidget(
+  mainSettingsSection.addWidget(
     CardService.newTextInput()
       .setFieldName('name')
       .setTitle('Sync Name')
       .setHint('e.g. Work & Personal Sync')
-      .setValue(config ? config.name : '')
+      .setValue(config ? config.calendar_name : '')
   );
 
   const namesMap = getCalendarNamesMap();
 
-  // Source Calendars
+  // Target Calendar dropdown (Only shown on Creation)
+  if (isNew) {
+    const targetSelect = CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.DROPDOWN)
+      .setFieldName('targetCalendarId')
+      .setTitle('Target Calendar');
+
+    targetSelect.addItem('[Create New Dedicated Calendar]', 'CREATE_NEW', true);
+
+    const ownCalendars = CalendarApp.getAllOwnedCalendars();
+    ownCalendars.forEach((cal) => {
+      try {
+        const id = cal.getId();
+        const displayName = namesMap[id] || cal.getName() || id;
+        targetSelect.addItem(displayName, id, false);
+      } catch (err) {
+        console.warn(`Error adding calendar ${cal.getId()} to target dropdown:`, err);
+      }
+    });
+    mainSettingsSection.addWidget(targetSelect);
+  }
+
+  // Source Calendars Selection (Compact checkboxes checklist with plain text labels)
   const sourcesSelect = CardService.newSelectionInput()
     .setType(CardService.SelectionInputType.CHECK_BOX)
     .setFieldName('sourceCalendarIds')
-    .setTitle('Source Calendars (Select to sync FROM)');
+    .setTitle('Calendars to Sync From');
 
   const calendars = CalendarApp.getAllCalendars();
   calendars.forEach((cal) => {
     const id = cal.getId();
     const displayName = namesMap[id] || cal.getName() || id;
-    const isSelected = config ? config.sourceCalendarIds.includes(id) : false;
+    const isSelected = config ? !!config.sourceCalendars?.[id] : false;
     sourcesSelect.addItem(displayName, id, isSelected);
   });
-  section.addWidget(sourcesSelect);
-
-  // Target Calendar
-  const targetSelect = CardService.newSelectionInput()
-    .setType(CardService.SelectionInputType.DROPDOWN)
-    .setFieldName('targetCalendarId')
-    .setTitle('Target Calendar (Select to sync TO)');
-
-  targetSelect.addItem(
-    '[Create New Dedicated Calendar]',
-    'CREATE_NEW',
-    isNew || config?.targetCalendarId === 'CREATE_NEW'
-  );
-
-  const ownCalendars = CalendarApp.getAllOwnedCalendars();
-  ownCalendars.forEach((cal) => {
-    try {
-      const id = cal.getId();
-      const displayName = namesMap[id] || cal.getName() || id;
-      targetSelect.addItem(displayName, id, config ? config.targetCalendarId === id : false);
-    } catch (err) {
-      console.warn(`Error adding calendar ${cal.getId()} to target dropdown:`, err);
-    }
-  });
-  section.addWidget(targetSelect);
+  mainSettingsSection.addWidget(sourcesSelect);
 
   // Title Prefix
-  section.addWidget(
+  mainSettingsSection.addWidget(
     CardService.newTextInput()
       .setFieldName('prefix')
       .setTitle('Title Prefix (Optional)')
-      .setHint('e.g. [Work] or [Shared] ')
-      .setValue(config ? config.prefix : '')
+      .setHint('e.g. Work')
+      .setValue(config ? config.event_prefix : '')
   );
 
   // Privacy Mode
@@ -203,28 +200,19 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     .setFieldName('syncPrivacy')
     .setTitle('Privacy Masking Mode')
     .addItem(
-      'Sync as Calendar Name (Mask details) [Default]',
+      'Sync as Calendar Nickname (Mask details) [Default]',
       'calendarName',
       !config || config.syncPrivacy === 'calendarName'
     )
-    .addItem(
-      'Sync full details (Title, description, location)',
-      'full',
-      config?.syncPrivacy === 'full'
-    )
-    .addItem("Sync as 'Busy' blocks only (Mask details)", 'busy', config?.syncPrivacy === 'busy');
-  section.addWidget(privacySelect);
+    .addItem('Sync full details', 'full', config?.syncPrivacy === 'full');
+  mainSettingsSection.addWidget(privacySelect);
 
   // Filter Out Free events
   const busyOnlySelect = CardService.newSelectionInput()
     .setType(CardService.SelectionInputType.CHECK_BOX)
     .setFieldName('syncOnlyBusyEvents')
-    .addItem(
-      'Filter out Free/Optional availability events',
-      'true',
-      isNew ? true : config.syncOnlyBusyEvents
-    );
-  section.addWidget(busyOnlySelect);
+    .addItem('Filter out Free/Optional events', 'true', isNew ? true : config.syncOnlyBusyEvents);
+  mainSettingsSection.addWidget(busyOnlySelect);
 
   // Sync range dropdown
   const rangeSelect = CardService.newSelectionInput()
@@ -241,9 +229,29 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
       '3_12',
       config?.syncRangeMonthsBack === 3 && config?.syncRangeMonthsForward === 12
     );
-  section.addWidget(rangeSelect);
+  mainSettingsSection.addWidget(rangeSelect);
 
-  // Action Buttons
+  builder.addSection(mainSettingsSection);
+
+  // Calendar Nicknames Collapsible Section (Available on both create and edit)
+  const customNamesSection = CardService.newCardSection()
+    .setHeader('Calendar Nicknames (Optional)')
+    .setCollapsible(true);
+
+  calendars.forEach((cal) => {
+    const id = cal.getId();
+    const fieldName = encodeIdForField(id);
+    const existingVal = config?.sourceCalendars?.[id]?.nickname || '';
+
+    customNamesSection.addWidget(
+      CardService.newTextInput().setFieldName(fieldName).setValue(existingVal)
+    );
+  });
+  builder.addSection(customNamesSection);
+
+  // Action Buttons Section
+  const buttonsSection = CardService.newCardSection();
+
   const saveAction = CardService.newAction()
     .setFunctionName('saveJobAction')
     .setParameters(config ? { jobId: config.id } : {});
@@ -261,29 +269,8 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
     )
     .addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(cancelAction));
 
-  section.addWidget(footerButtons);
-  builder.addSection(section);
-
-  // Custom Calendar Names Collapsible Section
-  const customNamesSection = CardService.newCardSection()
-    .setHeader('Custom Names (Optional)')
-    .setCollapsible(true);
-
-  calendars.forEach((cal) => {
-    const id = cal.getId();
-    const displayName = namesMap[id] || cal.getName() || id;
-    const fieldName = encodeIdForField(id);
-    const existingVal = config?.customCalendarNames?.[id] || '';
-
-    customNamesSection.addWidget(
-      CardService.newTextInput()
-        .setFieldName(fieldName)
-        .setTitle(`Name for: ${displayName}`)
-        .setHint('Custom name used in "Sync as Calendar Name" privacy mode')
-        .setValue(existingVal)
-    );
-  });
-  builder.addSection(customNamesSection);
+  buttonsSection.addWidget(footerButtons);
+  builder.addSection(buttonsSection);
 
   return builder.build();
 }
@@ -296,7 +283,6 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
   const formInputs = e.formInputs || {};
   const name = form.name ? form.name.trim() : '';
   const sourceCalendarIds = formInputs.sourceCalendarIds || [];
-  const targetCalendarId = form.targetCalendarId;
   const prefix = form.prefix || '';
   const syncPrivacy = form.syncPrivacy || 'full';
   const syncOnlyBusyEvents = !!(
@@ -312,26 +298,33 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     syncRangeMonthsForward = 12;
   }
 
-  // Format prefix to [PREFIX] with any typed brackets/spaces stripped first
-  const formattedPrefix = formatPrefix(prefix);
-
-  // Extract custom calendar names
-  const customCalendarNames: Record<string, string> = {};
-  try {
-    const calendars = CalendarApp.getAllCalendars();
-    calendars.forEach((cal) => {
-      const id = cal.getId();
-      const fieldName = encodeIdForField(id);
-      const val = form[fieldName] ? form[fieldName].trim() : '';
-      if (val) {
-        customCalendarNames[id] = val;
-      }
-    });
-  } catch (err) {
-    console.warn('Failed to extract custom calendar names:', err);
+  // Clean prefix to extract the raw prefix (e.g. "Work" from "[Work]")
+  let cleanPrefix = prefix.trim();
+  while (cleanPrefix.startsWith('[')) {
+    cleanPrefix = cleanPrefix.substring(1).trim();
+  }
+  while (cleanPrefix.endsWith(']')) {
+    cleanPrefix = cleanPrefix.substring(0, cleanPrefix.length - 1).trim();
   }
 
+  // Build the sourceCalendars dictionary using selected source calendars and nicknames
+  const sourceCalendars: Record<string, SourceCalendarConf> = {};
+  sourceCalendarIds.forEach((id: string) => {
+    const nameFieldName = encodeIdForField(id);
+    const val = form[nameFieldName] ? form[nameFieldName].trim() : '';
+    sourceCalendars[id] = {
+      nickname: val || undefined,
+    };
+  });
+
   const existingJobId = e.parameters.jobId;
+
+  // Load original config
+  const configs = loadAllSyncConfigs();
+  const originalConfig = configs.find((c) => c.id === existingJobId);
+
+  // If editing, reuse original config's target calendar, otherwise read from form
+  const targetCalendarId = originalConfig ? originalConfig.targetCalendarId : form.targetCalendarId;
 
   // 1. Validations
   if (!name) {
@@ -362,23 +355,38 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
   try {
     const jobId = existingJobId || `job_${new Date().getTime()}`;
 
-    // Load original config to check if sync method or source calendars changed (to rebuild triggers)
-    const configs = loadAllSyncConfigs();
-    const originalConfig = configs.find((c) => c.id === jobId);
+    // Immediate renaming of the target calendar if name changed (and it's not the primary calendar)
+    if (targetCalendarId && targetCalendarId !== 'CREATE_NEW') {
+      try {
+        const targetCal = CalendarApp.getCalendarById(targetCalendarId);
+        if (targetCal) {
+          const defaultCal = CalendarApp.getDefaultCalendar();
+          if (
+            targetCal.getName() !== name &&
+            (!defaultCal || targetCal.getId() !== defaultCal.getId())
+          ) {
+            console.log(
+              `[Job ${jobId}] Renaming target calendar immediately to match new name: ${name}`
+            );
+            targetCal.setName(name);
+          }
+        }
+      } catch (renameErr) {
+        console.warn(`[Job ${jobId}] Failed to rename target calendar immediately:`, renameErr);
+      }
+    }
 
     const newConfig: SyncConfig = {
       id: jobId,
-      name,
-      sourceCalendarIds,
+      calendar_name: name,
+      sourceCalendars,
       targetCalendarId,
-      prefix: formattedPrefix,
+      event_prefix: cleanPrefix,
       syncPrivacy,
       syncOnlyBusyEvents,
       syncRangeMonthsBack,
       syncRangeMonthsForward,
-      triggerIds: originalConfig ? originalConfig.triggerIds || {} : {},
       syncTokens: originalConfig ? originalConfig.syncTokens || {} : {},
-      customCalendarNames,
       status: originalConfig ? originalConfig.status : undefined,
       lastSyncedAt: originalConfig ? originalConfig.lastSyncedAt : undefined,
     };
@@ -386,34 +394,33 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     // Determine if settings changed to reset sync tokens and force full sync
     let hasSettingsChanged = false;
     if (originalConfig) {
-      const origPrefix = originalConfig.prefix || '';
+      const origPrefix = originalConfig.event_prefix || '';
       const origPrivacy = originalConfig.syncPrivacy || 'full';
       const origBusyOnly = !!originalConfig.syncOnlyBusyEvents;
       const origBack = originalConfig.syncRangeMonthsBack ?? 1;
       const origForward = originalConfig.syncRangeMonthsForward ?? 6;
-      const origSources = originalConfig.sourceCalendarIds || [];
-      const origCustomNames = originalConfig.customCalendarNames || {};
+      const origCalendars = originalConfig.sourceCalendars || {};
 
-      if (origPrefix !== formattedPrefix) hasSettingsChanged = true;
+      if (origPrefix !== cleanPrefix) hasSettingsChanged = true;
       if (origPrivacy !== syncPrivacy) hasSettingsChanged = true;
       if (origBusyOnly !== syncOnlyBusyEvents) hasSettingsChanged = true;
       if (origBack !== syncRangeMonthsBack) hasSettingsChanged = true;
       if (origForward !== syncRangeMonthsForward) hasSettingsChanged = true;
 
-      // Compare source calendars list
+      // Compare source calendars list and their nicknames
+      const origKeys = Object.keys(origCalendars);
       if (
-        origSources.length !== sourceCalendarIds.length ||
-        !sourceCalendarIds.every((id: string) => origSources.includes(id))
+        origKeys.length !== sourceCalendarIds.length ||
+        !sourceCalendarIds.every((id: string) => origKeys.includes(id))
       ) {
         hasSettingsChanged = true;
-      }
-
-      // Compare custom calendar names
-      const allSourceCalIds = Array.from(new Set([...origSources, ...sourceCalendarIds]));
-      for (const id of allSourceCalIds) {
-        if ((origCustomNames[id] || '') !== (customCalendarNames[id] || '')) {
-          hasSettingsChanged = true;
-          break;
+      } else {
+        // Compare nicknames
+        for (const id of sourceCalendarIds) {
+          if ((origCalendars[id]?.nickname || '') !== (sourceCalendars[id]?.nickname || '')) {
+            hasSettingsChanged = true;
+            break;
+          }
         }
       }
     }
@@ -430,10 +437,10 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     }
 
     // Determine if trigger rebuild is required
+    const originalCalKeys = originalConfig ? Object.keys(originalConfig.sourceCalendars || {}) : [];
     const sourcesChanged =
       !originalConfig ||
-      JSON.stringify(originalConfig.sourceCalendarIds.sort()) !==
-        JSON.stringify(sourceCalendarIds.sort());
+      JSON.stringify(originalCalKeys.sort()) !== JSON.stringify(sourceCalendarIds.sort());
 
     if (sourcesChanged) {
       setupTriggers(newConfig);
@@ -446,7 +453,7 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     const isEnqueued = enqueueBackgroundSync(jobId);
     const toastMsg = isEnqueued
       ? 'Configuration saved! Initial sync is starting in the background.'
-      : 'Configuration saved! Initial sync will run on the next hourly schedule.';
+      : 'Sync enqueued! It will run shortly in the background or on the next hourly schedule.';
 
     // Refresh homepage
     const homeCard = createCalendarSyncHomepage(e);
@@ -494,7 +501,7 @@ export function triggerSyncManual(e: any): GoogleAppsScript.Card_Service.ActionR
       CardService.newNotification().setText(
         isEnqueued
           ? 'Manual sync started in the background. It may take a few minutes.'
-          : 'Failed to schedule background sync. Please try again.'
+          : 'Sync enqueued! It will run shortly in the background or on the next hourly schedule.'
       )
     )
     .build();
@@ -511,7 +518,7 @@ export function openDeleteJobConfirmCard(e: any): GoogleAppsScript.Card_Service.
   const builder = CardService.newCardBuilder().setHeader(
     CardService.newCardHeader()
       .setTitle('Confirm Deletion')
-      .setSubtitle(config ? config.name : '')
+      .setSubtitle(config ? config.calendar_name : '')
   );
 
   const section = CardService.newCardSection().addWidget(
@@ -538,22 +545,27 @@ export function openDeleteJobConfirmCard(e: any): GoogleAppsScript.Card_Service.
     .setFieldName('deleteOption');
 
   if (isPrimary) {
-    // Primary calendars cannot be deleted, so we don't offer delete_calendar and default to delete_events
     deleteSelect.addItem(
-      'Delete all previously synced events (Recommended)',
+      'Delete all previously synced events from your primary calendar',
       'delete_events',
       true
     );
-    deleteSelect.addItem('Keep target calendar and events', 'keep_all', false);
-  } else {
-    // Dedicated / secondary calendars can be deleted, default to delete_calendar
     deleteSelect.addItem(
-      'Delete target calendar completely (Recommended)',
+      'Disconnect from the calendar and keep all events intact',
+      'keep_all',
+      false
+    );
+  } else {
+    deleteSelect.addItem(
+      'Delete the target calendar completely and all its events',
       'delete_calendar',
       true
     );
-    deleteSelect.addItem('Delete all previously synced events only', 'delete_events', false);
-    deleteSelect.addItem('Keep target calendar and events', 'keep_all', false);
+    deleteSelect.addItem(
+      'Disconnect from the calendar and keep all events intact',
+      'keep_all',
+      false
+    );
   }
 
   section.addWidget(deleteSelect);

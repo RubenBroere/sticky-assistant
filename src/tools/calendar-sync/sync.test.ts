@@ -77,15 +77,17 @@ describe('Calendar Sync Core Logic (Always Hourly)', () => {
 
   const sampleConfig: SyncConfig = {
     id: 'test_job_1',
-    name: 'Test Job',
-    sourceCalendarIds: ['src_1', 'src_2'],
+    calendar_name: 'Test Job',
+    sourceCalendars: {
+      src_1: {},
+      src_2: {},
+    },
     targetCalendarId: 'target_1',
-    prefix: '[Test] ',
+    event_prefix: 'Test',
     syncPrivacy: 'full',
     syncOnlyBusyEvents: true,
     syncRangeMonthsBack: 1,
     syncRangeMonthsForward: 6,
-    triggerIds: {},
   };
 
   it('should successfully save and load sync configurations', () => {
@@ -94,8 +96,8 @@ describe('Calendar Sync Core Logic (Always Hourly)', () => {
     const loaded = loadAllSyncConfigs();
     expect(loaded.length).toBe(1);
     expect(loaded[0].id).toBe('test_job_1');
-    expect(loaded[0].name).toBe('Test Job');
-    expect(loaded[0].sourceCalendarIds).toContain('src_1');
+    expect(loaded[0].calendar_name).toBe('Test Job');
+    expect(loaded[0].sourceCalendars).toHaveProperty('src_1');
     expect(loaded[0].syncPrivacy).toBe('full');
   });
 

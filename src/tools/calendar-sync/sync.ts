@@ -115,22 +115,6 @@ export function setupTriggers(config: SyncConfig): void {
 export function cleanupTriggers(config: SyncConfig): void {
   const triggers = ScriptApp.getProjectTriggers();
 
-  // Cleanup legacy individual triggers if they exist in the config
-  if (config.triggerIds) {
-    const triggerIdsToDelete = new Set(Object.values(config.triggerIds));
-    triggers.forEach((t) => {
-      if (triggerIdsToDelete.has(t.getUniqueId())) {
-        try {
-          ScriptApp.deleteTrigger(t);
-        } catch (err) {
-          console.warn(`Failed to delete legacy trigger ${t.getUniqueId()}:`, err);
-        }
-      }
-    });
-  }
-
-  config.triggerIds = {};
-
   // If no other configs exist, remove the hourly trigger
   const allConfigs = loadAllSyncConfigs();
   const anyOtherConfig = allConfigs.some((c) => c.id !== config.id);
@@ -156,16 +140,18 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
     let targetCalId = config.targetCalendarId;
     if (targetCalId === 'CREATE_NEW') {
       try {
-        console.log(`[Job ${config.id}] Creating new target calendar named: ${config.name}`);
-        const newCal = CalendarApp.createCalendar(config.name, {
-          summary: `Target calendar created by Sticky Assistant for combined calendar: ${config.name}`,
+        console.log(
+          `[Job ${config.id}] Creating new target calendar named: ${config.calendar_name}`
+        );
+        const newCal = CalendarApp.createCalendar(config.calendar_name, {
+          summary: `Target calendar created by Sticky Assistant for combined calendar: ${config.calendar_name}`,
         });
         targetCalId = newCal.getId();
         config.targetCalendarId = targetCalId;
         saveSyncConfig(config); // Save the resolved calendar ID
       } catch (calErr: any) {
         throw new Error(
-          `Failed to create new calendar '${config.name}': ${calErr?.message || calErr}`,
+          `Failed to create new calendar '${config.calendar_name}': ${calErr?.message || calErr}`,
           { cause: calErr }
         );
       }
@@ -174,6 +160,22 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
     const targetCal = CalendarApp.getCalendarById(targetCalId);
     if (!targetCal) {
       throw new Error(`Target calendar with ID '${targetCalId}' not found.`);
+    }
+
+    // Rename target calendar if name does not match configuration name (and it's not the primary calendar)
+    try {
+      const defaultCal = CalendarApp.getDefaultCalendar();
+      if (
+        targetCal.getName() !== config.calendar_name &&
+        (!defaultCal || targetCal.getId() !== defaultCal.getId())
+      ) {
+        console.log(
+          `[Job ${config.id}] Renaming target calendar to match sync config name: ${config.calendar_name}`
+        );
+        targetCal.setName(config.calendar_name);
+      }
+    } catch (renameErr) {
+      console.warn(`[Job ${config.id}] Failed to rename target calendar:`, renameErr);
     }
 
     const now = new Date();
@@ -200,10 +202,11 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
 
     const startTimeLimit = new Date().getTime();
 
+    const sourceCalendarIds = Object.keys(config.sourceCalendars || {});
     // Process all remaining source calendars in a single execution
     while (
       config.syncProgress &&
-      config.syncProgress.lastProcessedIndex + 1 < config.sourceCalendarIds.length
+      config.syncProgress.lastProcessedIndex + 1 < sourceCalendarIds.length
     ) {
       // Check elapsed time to prevent abrupt execution timeout (GAS limit is 6 minutes)
       const elapsed = new Date().getTime() - startTimeLimit;
@@ -218,9 +221,9 @@ export function runSyncJob(config: SyncConfig): { ok: boolean; message?: string 
       }
 
       const nextIndex: number = config.syncProgress.lastProcessedIndex + 1;
-      const sourceCalId = config.sourceCalendarIds[nextIndex];
+      const sourceCalId = sourceCalendarIds[nextIndex];
       const sourceCalName = resolveCalendarName(sourceCalId);
-      config.statusMessage = `Syncing calendar ${nextIndex + 1}/${config.sourceCalendarIds.length}...`;
+      config.statusMessage = `Syncing calendar ${nextIndex + 1}/${sourceCalendarIds.length}...`;
       saveSyncConfig(config);
 
       try {
@@ -276,15 +279,17 @@ function getCustomCalendarName(
   sourceCalId: string,
   defaultName: string
 ): string {
-  if (!config.customCalendarNames) return defaultName;
-  if (config.customCalendarNames[sourceCalId]) {
-    return config.customCalendarNames[sourceCalId];
+  if (!config.sourceCalendars) return defaultName;
+  const calConf = config.sourceCalendars[sourceCalId];
+  if (calConf && calConf.nickname) {
+    return calConf.nickname;
   }
   if (sourceCalId === 'primary') {
     try {
       const primaryEmail = CalendarApp.getDefaultCalendar().getId();
-      if (config.customCalendarNames[primaryEmail]) {
-        return config.customCalendarNames[primaryEmail];
+      const primaryConf = config.sourceCalendars[primaryEmail];
+      if (primaryConf && primaryConf.nickname) {
+        return primaryConf.nickname;
       }
     } catch {
       // Ignore
@@ -292,8 +297,11 @@ function getCustomCalendarName(
   } else {
     try {
       const primaryEmail = CalendarApp.getDefaultCalendar().getId();
-      if (sourceCalId === primaryEmail && config.customCalendarNames['primary']) {
-        return config.customCalendarNames['primary'];
+      if (sourceCalId === primaryEmail) {
+        const primaryConf = config.sourceCalendars['primary'];
+        if (primaryConf && primaryConf.nickname) {
+          return primaryConf.nickname;
+        }
       }
     } catch {
       // Ignore
@@ -542,14 +550,10 @@ function processSourceEvent(
     processedSourceKeys.add(uniqueSourceKey);
   }
 
-  const isMasked = config.syncPrivacy === 'busy' || config.syncPrivacy === 'calendarName';
+  const isMasked = config.syncPrivacy === 'calendarName';
   const eventTitle =
-    config.syncPrivacy === 'busy'
-      ? 'Busy'
-      : config.syncPrivacy === 'calendarName'
-        ? sourceCalName
-        : sourceEvent.summary || 'Untitled Event';
-  const title = config.prefix + eventTitle;
+    config.syncPrivacy === 'calendarName' ? sourceCalName : sourceEvent.summary || 'Untitled Event';
+  const title = formatPrefix(config.event_prefix) + eventTitle;
   const description = isMasked ? '' : sourceEvent.description || '';
   const location = isMasked ? '' : sourceEvent.location || '';
 
