@@ -21,6 +21,10 @@ export const ICON_URLS = {
     'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/comment/default/48px.svg',
   committeeCreator:
     'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/folder_copy/default/48px.svg',
+  calendarSync:
+    'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/calendar_month/default/48px.svg',
+  propertiesDebugger:
+    'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/bug_report/default/48px.svg',
   settings:
     'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/settings/default/48px.svg',
   info: 'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/info/default/48px.svg',

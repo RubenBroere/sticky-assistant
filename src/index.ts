@@ -39,3 +39,11 @@ export {
   handleBackgroundInitialSync,
   handleBackgroundDeletion,
 } from './tools/calendar-sync/sync';
+
+// Properties Debugger Callbacks
+export {
+  openEditPropertyCard,
+  savePropertyAction,
+  openDeletePropertyConfirmCard,
+  deletePropertyAction,
+} from './tools/properties-debugger/cards';
