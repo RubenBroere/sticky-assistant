@@ -10,12 +10,10 @@ const tool: Tool = {
     {
       event: TriggerEvent.DEFAULT_HOMEPAGE,
       createCard: createPropertiesDebuggerHomepage,
-      enabled: () => true,
     },
     {
       event: TriggerEvent.CALENDAR_HOMEPAGE,
       createCard: createPropertiesDebuggerHomepage,
-      enabled: () => true,
     },
   ],
 };

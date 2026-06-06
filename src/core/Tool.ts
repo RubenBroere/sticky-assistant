@@ -39,7 +39,7 @@ export interface Tool {
 export interface ToolTrigger {
   event: TriggerEvent;
   createCard: (e: GoogleAppsScript.Addons.EventObject) => GoogleAppsScript.Card_Service.Card;
-  enabled: (e: GoogleAppsScript.Addons.EventObject) => boolean;
+  enabled?: (e: GoogleAppsScript.Addons.EventObject) => boolean;
 }
 
 export enum TriggerEvent {

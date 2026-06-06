@@ -16,7 +16,6 @@ const tool: Tool = {
     {
       event: TriggerEvent.DOCS_HOMEPAGE,
       createCard: createActionPointsHomepage,
-      enabled: (e) => e.commonEventObject.hostApp === 'DOCS',
     },
   ],
 };

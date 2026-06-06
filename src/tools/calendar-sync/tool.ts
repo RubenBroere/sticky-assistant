@@ -10,12 +10,10 @@ const tool: Tool = {
     {
       event: TriggerEvent.DEFAULT_HOMEPAGE,
       createCard: createCalendarSyncHomepage,
-      enabled: (e) => e.commonEventObject.hostApp === 'CALENDAR',
     },
     {
       event: TriggerEvent.CALENDAR_HOMEPAGE,
       createCard: createCalendarSyncHomepage,
-      enabled: () => true,
     },
   ],
 };
