@@ -125,6 +125,13 @@ function encodeIdForField(id: string): string {
 }
 
 /**
+ * Helper to encode calendar ID into a safe alphanumeric field name for privacy overrides.
+ */
+function encodeIdForPrivacyField(id: string): string {
+  return 'privacyOverride_' + Utilities.base64EncodeWebSafe(id).replace(/=/g, '');
+}
+
+/**
  * Form to create/edit sync jobs.
  */
 function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card_Service.Card {
@@ -204,7 +211,8 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
       'calendarName',
       !config || config.syncPrivacy === 'calendarName'
     )
-    .addItem('Sync full details', 'full', config?.syncPrivacy === 'full');
+    .addItem('Sync full details', 'full', config?.syncPrivacy === 'full')
+    .addItem('Sync as "Busy"', 'busy', config?.syncPrivacy === 'busy');
   mainSettingsSection.addWidget(privacySelect);
 
   // Filter Out Free events
@@ -233,18 +241,44 @@ function createEditSyncJobCard(config: SyncConfig | null): GoogleAppsScript.Card
 
   builder.addSection(mainSettingsSection);
 
-  // Calendar Nicknames Collapsible Section (Available on both create and edit)
+  // Calendar Overrides Collapsible Section (Available on both create and edit)
   const customNamesSection = CardService.newCardSection()
-    .setHeader('Calendar Nicknames (Optional)')
+    .setHeader('Calendar Overrides (Optional)')
     .setCollapsible(true);
 
   calendars.forEach((cal) => {
     const id = cal.getId();
+    const displayName = namesMap[id] || cal.getName() || id;
     const fieldName = encodeIdForField(id);
     const existingVal = config?.sourceCalendars?.[id]?.nickname || '';
 
+    const privacyFieldName = encodeIdForPrivacyField(id);
+    const existingPrivacy = config?.sourceCalendars?.[id]?.privacyMode || 'default';
+
+    customNamesSection.addWidget(CardService.newDecoratedText().setText(`<b>${displayName}</b>`));
+
     customNamesSection.addWidget(
-      CardService.newTextInput().setFieldName(fieldName).setValue(existingVal)
+      CardService.newTextInput()
+        .setFieldName(fieldName)
+        .setTitle('Custom Nickname')
+        .setValue(existingVal)
+    );
+
+    const calPrivacySelect = CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.DROPDOWN)
+      .setFieldName(privacyFieldName)
+      .setTitle('Privacy Override')
+      .addItem('Use Global Default', 'default', existingPrivacy === 'default')
+      .addItem('Sync Full Details', 'full', existingPrivacy === 'full')
+      .addItem('Sync as Calendar Nickname', 'calendarName', existingPrivacy === 'calendarName')
+      .addItem('Sync as "Busy"', 'busy', existingPrivacy === 'busy');
+
+    customNamesSection.addWidget(calPrivacySelect);
+
+    customNamesSection.addWidget(
+      CardService.newDecoratedText().setText(
+        '<font color="#e0e0e0">────────────────────────────</font>'
+      )
     );
   });
   builder.addSection(customNamesSection);
@@ -307,13 +341,16 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
     cleanPrefix = cleanPrefix.substring(0, cleanPrefix.length - 1).trim();
   }
 
-  // Build the sourceCalendars dictionary using selected source calendars and nicknames
+  // Build the sourceCalendars dictionary using selected source calendars, nicknames, and privacy overrides
   const sourceCalendars: Record<string, SourceCalendarConf> = {};
   sourceCalendarIds.forEach((id: string) => {
     const nameFieldName = encodeIdForField(id);
     const val = form[nameFieldName] ? form[nameFieldName].trim() : '';
+    const privacyFieldName = encodeIdForPrivacyField(id);
+    const privacyVal = form[privacyFieldName] || 'default';
     sourceCalendars[id] = {
       nickname: val || undefined,
+      privacyMode: privacyVal !== 'default' ? (privacyVal as any) : undefined,
     };
   });
 
@@ -415,9 +452,14 @@ export function saveJobAction(e: any): GoogleAppsScript.Card_Service.ActionRespo
       ) {
         hasSettingsChanged = true;
       } else {
-        // Compare nicknames
+        // Compare nicknames and privacy overrides
         for (const id of sourceCalendarIds) {
-          if ((origCalendars[id]?.nickname || '') !== (sourceCalendars[id]?.nickname || '')) {
+          const origNick = origCalendars[id]?.nickname || '';
+          const newNick = sourceCalendars[id]?.nickname || '';
+          const origPrivacy = origCalendars[id]?.privacyMode || 'default';
+          const newPrivacy = sourceCalendars[id]?.privacyMode || 'default';
+
+          if (origNick !== newNick || origPrivacy !== newPrivacy) {
             hasSettingsChanged = true;
             break;
           }

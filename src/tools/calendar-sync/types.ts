@@ -1,5 +1,6 @@
 export interface SourceCalendarConf {
   nickname?: string;
+  privacyMode?: 'default' | 'full' | 'calendarName' | 'busy';
 }
 
 export interface SyncConfig {
@@ -8,7 +9,7 @@ export interface SyncConfig {
   sourceCalendars: Record<string, SourceCalendarConf>; // Map of source calendar ID -> calendar sync config
   targetCalendarId: string; // Target calendar ID to sync to
   event_prefix: string; // Prefix prepended to event titles
-  syncPrivacy: 'full' | 'calendarName'; // Sync mode: full detail vs calendar name
+  syncPrivacy: 'full' | 'calendarName' | 'busy'; // Sync mode: full detail vs calendar name vs busy
   syncOnlyBusyEvents: boolean; // If true, skip events marked transparent/free
   syncRangeMonthsBack: number; // Time range: months in past to look back
   syncRangeMonthsForward: number; // Time range: months in future to look forward
