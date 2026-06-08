@@ -550,12 +550,32 @@ function processSourceEvent(
     processedSourceKeys.add(uniqueSourceKey);
   }
 
-  const isMasked = config.syncPrivacy === 'calendarName';
-  const eventTitle =
-    config.syncPrivacy === 'calendarName' ? sourceCalName : sourceEvent.summary || 'Untitled Event';
+  const sourceConf = config.sourceCalendars?.[sourceCalId] || {};
+  const activePrivacyMode =
+    sourceConf.privacyMode && sourceConf.privacyMode !== 'default'
+      ? sourceConf.privacyMode
+      : config.syncPrivacy;
+
+  let eventTitle: string;
+  let description: string;
+  let location: string;
+
+  if (activePrivacyMode === 'full') {
+    eventTitle = sourceEvent.summary || 'Untitled Event';
+    description = sourceEvent.description || '';
+    location = sourceEvent.location || '';
+  } else if (activePrivacyMode === 'calendarName') {
+    eventTitle = sourceCalName;
+    description = '';
+    location = '';
+  } else {
+    // busy
+    eventTitle = 'Busy';
+    description = '';
+    location = '';
+  }
+
   const title = formatPrefix(config.event_prefix) + eventTitle;
-  const description = isMasked ? '' : sourceEvent.description || '';
-  const location = isMasked ? '' : sourceEvent.location || '';
 
   const existingEvents = targetEventsBySourceKey[uniqueSourceKey] || [];
 
