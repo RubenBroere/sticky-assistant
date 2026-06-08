@@ -1,4 +1,8 @@
-export type CommentsExtractorConfig = Record<string, never>;
+export interface CommentsExtractorConfig {
+  exportSheetPrefix: string;
+  includeReplies: boolean;
+}
+
 export function validateCommentsExtractorConfig(formInput: Record<string, any>): {
   ok: boolean;
   message?: string;

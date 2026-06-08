@@ -7,7 +7,7 @@ export interface PeopleConfigEntry {
 export interface ActionPointsConfig {
   todoistToken: string;
   todoistProjectId: string;
-  todoistEnabled: boolean;
+  enableTodoist: boolean;
   peopleConfig: Record<string, PeopleConfigEntry>;
 }
 

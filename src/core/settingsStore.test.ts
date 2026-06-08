@@ -13,6 +13,7 @@ vi.hoisted(() => {
 
 import { saveToolSettings, resetSettingsCache } from './settingsStore';
 import { ToolSetting } from './Tool';
+import { SettingsManager } from './SettingsManager';
 
 // Mock the global Google Apps Script services
 const mockUserProperties: Record<string, string> = {};
@@ -246,6 +247,90 @@ describe('settingsStore', () => {
       expect(parsed['customTool']['apiKey']).toBeUndefined();
       expect(parsed['customTool']['authToken']).toBeUndefined();
       expect(parsed['customTool']['mySecretValue']).toBeUndefined();
+    });
+  });
+
+  describe('SettingsManager', () => {
+    interface TestConfig {
+      todoistToken: string;
+      todoistProjectId: string;
+      enableTodoist: boolean;
+      peopleConfig: any;
+      numberVal: number;
+    }
+
+    const testDefs: ToolSetting[] = [
+      { id: 'todoistToken', label: 'Todoist Token', type: 'text', default: '', secret: true },
+      { id: 'todoistProjectId', label: 'Todoist Project ID', type: 'text', default: '' },
+      { id: 'enableTodoist', label: 'Enable Todoist', type: 'checkbox', default: false },
+      {
+        id: 'peopleConfig',
+        label: 'People Config',
+        type: 'multiline',
+        default: {},
+        parse: (val) => (typeof val === 'string' ? JSON.parse(val || '{}') : val),
+        format: (val) => JSON.stringify(val),
+        validate: (val) =>
+          val && typeof val === 'object' && !Array.isArray(val)
+            ? { ok: true }
+            : { ok: false, message: 'Must be an object' },
+      },
+      { id: 'numberVal', label: 'Number Value', type: 'number', default: 42 },
+    ];
+
+    let manager: SettingsManager<TestConfig>;
+
+    beforeEach(() => {
+      manager = new SettingsManager<TestConfig>('actionPointsExtractor', testDefs);
+    });
+
+    it('loads typed settings with defaults and parse hooks', () => {
+      // Seed storage with raw values
+      mockUserProperties['actionPointsExtractor__todoistToken'] = 'token-123';
+      mockUserProperties['actionPointsExtractor__todoistProjectId'] = 'proj-abc';
+      mockUserProperties['actionPointsExtractor__enableTodoist'] = 'true';
+      mockUserProperties['actionPointsExtractor__peopleConfig'] = '{"Alice": {}}';
+      mockUserProperties['actionPointsExtractor__numberVal'] = '100';
+
+      const config = manager.load();
+      expect(config.todoistToken).toBe('token-123');
+      expect(config.todoistProjectId).toBe('proj-abc');
+      expect(config.enableTodoist).toBe(true);
+      expect(config.peopleConfig).toEqual({ Alice: {} });
+      expect(config.numberVal).toBe(100);
+    });
+
+    it('loads parsed defaults when storage is empty', () => {
+      const config = manager.load();
+      expect(config.todoistToken).toBe('');
+      expect(config.enableTodoist).toBe(false);
+      expect(config.peopleConfig).toEqual({});
+      expect(config.numberVal).toBe(42);
+    });
+
+    it('saves setting values through format hooks', () => {
+      const res = manager.save(
+        {
+          todoistProjectId: 'new-proj',
+          peopleConfig: { Bob: { order: 1 } },
+          numberVal: 77,
+        },
+        'global'
+      );
+
+      expect(res.ok).toBe(true);
+      expect(mockUserProperties['actionPointsExtractor__todoistProjectId']).toBe('new-proj');
+      expect(mockUserProperties['actionPointsExtractor__peopleConfig']).toBe('{"Bob":{"order":1}}');
+      expect(mockUserProperties['actionPointsExtractor__numberVal']).toBe('77');
+    });
+
+    it('runs custom validations', () => {
+      const validRes = manager.validate({ peopleConfig: { Alice: {} } });
+      expect(validRes.ok).toBe(true);
+
+      const invalidRes = manager.validate({ peopleConfig: [] });
+      expect(invalidRes.ok).toBe(false);
+      expect(invalidRes.message).toBe('Must be an object');
     });
   });
 });

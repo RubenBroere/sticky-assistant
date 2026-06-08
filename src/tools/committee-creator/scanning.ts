@@ -30,13 +30,17 @@ export function analyzeFolderName(name: string) {
   return { found: false } as any;
 }
 
-export function transformText(text: string, analysis: any) {
+export function transformText(text: string, analysis: any, settings: any) {
+  const pY1 = settings.placeholderY1 || '[YEAR_1]';
+  const pY2 = settings.placeholderY2 || '[YEAR_2]';
+  const pFull = settings.placeholderFull || '[YEAR]';
+
   return text
-    .split(COMMITTEE_CONFIG.PLACEHOLDERS.Y1)
+    .split(pY1)
     .join(analysis.nextY1)
-    .split(COMMITTEE_CONFIG.PLACEHOLDERS.Y2)
+    .split(pY2)
     .join(analysis.nextY2)
-    .split(COMMITTEE_CONFIG.PLACEHOLDERS.FULL)
+    .split(pFull)
     .join(analysis.nextFull);
 }
 

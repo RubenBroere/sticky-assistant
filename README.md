@@ -29,13 +29,6 @@ iwr https://raw.githubusercontent.com/RubenBroere/sticky-assistant/main/scripts/
 ├── dist/                     # Rollup build output (ignored in git, deployed to Apps Script)
 ├── src/
 │   ├── core/                 # Shared core framework and utilities
-│   │   ├── branding.ts       # Branding guidelines, colors, and Material Symbol icons
-│   │   ├── cards.ts          # General card helpers (e.g. info/error banners)
-│   │   ├── cardTemplate.ts   # Tool card layouts and footers
-│   │   ├── settingsCard.ts   # Layered settings UI builder
-│   │   ├── settingsStore.ts  # Settings read/write and caching engine
-│   │   ├── Tool.ts           # Interfaces for Tool configurations and Triggers
-│   │   └── triggerHandler.ts # Routing logic and host app homepage detection
 │   ├── tools/                # Specialized tools in the Sticky Assistant suite
 │   │   ├── action-points-extractor/
 │   │   ├── calendar-sync/

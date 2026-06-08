@@ -1,6 +1,5 @@
-import { PeopleConfigEntry, parsePeopleConfig, validatePeopleConfig } from './config';
-import { loadToolSettings } from '../../core/settingsStore';
-import { ACTION_POINTS_SETTINGS } from './settings';
+import { PeopleConfigEntry, validatePeopleConfig } from './config';
+import { actionPointsSettingsManager } from './settings';
 
 export interface ActionPointOccurrence {
   originalName: string;
@@ -90,8 +89,9 @@ function getOrderForPerson(personName: string, peopleConfig: Record<string, Peop
  * Searches the folder directory tree of the active document to find a "sticky-assistant.json"
  * containing folder-level overrides of the team people configuration.
  */
-function loadMergedPeopleConfig(globalRaw: string): Record<string, PeopleConfigEntry> {
-  const globalConfig = parsePeopleConfig(globalRaw);
+function loadMergedPeopleConfig(
+  globalConfig: Record<string, PeopleConfigEntry>
+): Record<string, PeopleConfigEntry> {
   try {
     const doc = DocumentApp.getActiveDocument();
     if (!doc) return globalConfig;
@@ -134,10 +134,10 @@ export function scanActionPointsDocument(): ActionPointsScanResult | null {
 
   const body = doc.getBody();
   const numChildren = body.getNumChildren();
-  const raw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
+  const config = actionPointsSettingsManager.load();
 
   // Load and merge/override configurations
-  const peopleConfig = loadMergedPeopleConfig(String(raw.peopleConfig || ''));
+  const peopleConfig = loadMergedPeopleConfig(config.peopleConfig);
   const aliasLookup = buildAliasLookup(peopleConfig);
 
   // Expect standard YYYY-MM-DD date format standard: [2026-05-27]

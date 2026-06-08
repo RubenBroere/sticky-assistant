@@ -40,3 +40,11 @@ The cloner traverses subfolders recursively using `DriveApp`:
 1. Copies the parent folder structure.
 2. Clones all underlying files (like Google Docs, Sheets, and Slides templates).
 3. Optionally retains existing user permissions or creates fresh directories.
+
+### 4. Configurations & Settings
+
+The tool supports user preferences at both the Global (account-wide) and Workspace (folder-specific `sticky-assistant.json`) levels:
+
+- **Template Folder Name**: The name of the template subfolder to search for and clone (default: `Template`).
+- **Year Placeholders**: Custom placeholders replaced inside Google Docs during copying (`[YEAR]`, `[YEAR_1]`, `[YEAR_2]`).
+- **Include Sub-Committees**: A checkbox to toggle scanning of subfolders for template directories.
