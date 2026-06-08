@@ -1,5 +1,5 @@
 import { getTools } from '../tools/registry';
-import { Tool, getToolSettingInitialValue } from './Tool';
+import { Tool, getToolSettingInitialValue, ToolSetting } from './Tool';
 import {
   loadToolSettings,
   saveToolSettings,
@@ -10,9 +10,168 @@ import {
 import { COLORS, ICON_URLS } from './branding';
 
 /**
+ * Helper to build setting input widgets dynamically based on the setting type.
+ */
+function createSettingInputWidget(
+  s: ToolSetting,
+  fieldName: string,
+  prefill: any
+): GoogleAppsScript.Card_Service.Widget {
+  if (s.type === 'multiline') {
+    return CardService.newTextInput()
+      .setFieldName(fieldName)
+      .setTitle(s.label)
+      .setValue(String(prefill || ''))
+      .setMultiline(true);
+  } else if (s.type === 'checkbox') {
+    return CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.CHECK_BOX)
+      .setFieldName(fieldName)
+      .addItem('Enabled', 'true', Boolean(prefill));
+  } else if (s.type === 'dropdown') {
+    const dropdown = CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.DROPDOWN)
+      .setFieldName(fieldName)
+      .setTitle(s.label);
+    if (s.options) {
+      s.options.forEach((opt) => {
+        dropdown.addItem(opt.label, opt.value, String(prefill) === opt.value);
+      });
+    }
+    return dropdown;
+  } else {
+    return CardService.newTextInput()
+      .setFieldName(fieldName)
+      .setTitle(s.label)
+      .setValue(String(prefill || ''));
+  }
+}
+
+/**
+ * Helper to render individual setting fields, status indicators, and context buttons.
+ */
+function renderSingleSetting(
+  section: GoogleAppsScript.Card_Service.CardSection,
+  tool: Tool,
+  s: ToolSetting,
+  prefill: any,
+  parentFolder: GoogleAppsScript.Drive.Folder | null,
+  isWorkspace: boolean,
+  isFocused: boolean
+): void {
+  // 1. Status indicator
+  const statusWidget = CardService.newDecoratedText().setWrapText(true);
+  const labelText = isFocused ? '' : `<b>${s.label}</b> `;
+
+  if (s.secret) {
+    statusWidget
+      .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CONFIRMATION_NUMBER_ICON))
+      .setText(`${labelText}<font color="${COLORS.MUTED}"><b>(🔒 Global Only)</b></font>`)
+      .setBottomLabel('Private credential. Keep secure in your personal account properties.');
+  } else if (isWorkspace) {
+    statusWidget
+      .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.success))
+      .setText(
+        `${labelText}<font color="${COLORS.SUCCESS}"><b>${
+          isFocused ? 'Workspace Layer' : '(Workspace Override)'
+        }</b></font>`
+      )
+      .setBottomLabel("Stored locally in this folder's sticky-assistant.json file.");
+  } else {
+    statusWidget
+      .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.info))
+      .setText(
+        `${labelText}<font color="${COLORS.MUTED}"><b>${
+          isFocused ? 'Global Layer' : '(Global Active)'
+        }</b></font>`
+      )
+      .setBottomLabel('Using your account-wide preferences.');
+  }
+  section.addWidget(statusWidget);
+
+  // 2. Input widget
+  const fieldName = `${tool.id}__${s.id}`;
+  section.addWidget(createSettingInputWidget(s, fieldName, prefill));
+
+  // 3. Action Buttons
+  const buttonSet = CardService.newButtonSet();
+  const isFocusedStr = isFocused ? 'true' : 'false';
+
+  if (s.secret) {
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText('Save')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOnClickAction(
+          CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
+            toolId: tool.id,
+            settingId: s.id,
+            targetLayer: 'global',
+            isFocused: isFocusedStr,
+          })
+        )
+    );
+  } else if (isWorkspace) {
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText('Save')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOnClickAction(
+          CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
+            toolId: tool.id,
+            settingId: s.id,
+            targetLayer: 'workspace',
+            isFocused: isFocusedStr,
+          })
+        )
+    );
+
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText(isFocused ? 'Reset to Global' : 'Reset')
+        .setOnClickAction(
+          CardService.newAction()
+            .setFunctionName('deleteWorkspaceOverride')
+            .setParameters({ toolId: tool.id, settingId: s.id, isFocused: isFocusedStr })
+        )
+    );
+  } else {
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText('Save')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOnClickAction(
+          CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
+            toolId: tool.id,
+            settingId: s.id,
+            targetLayer: 'global',
+            isFocused: isFocusedStr,
+          })
+        )
+    );
+
+    if (parentFolder) {
+      buttonSet.addButton(
+        CardService.newTextButton()
+          .setText('Save to Workspace')
+          .setOnClickAction(
+            CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
+              toolId: tool.id,
+              settingId: s.id,
+              targetLayer: 'workspace',
+              isFocused: isFocusedStr,
+            })
+          )
+      );
+    }
+  }
+
+  section.addWidget(buttonSet);
+}
+
+/**
  * Builds the unified configuration card. Supports a general multi-tool view
  * or a focused single-tool settings view.
- * All settings are rendered, monitored, and saved individually.
  */
 export function buildUnifiedSettingsCard(e?: {
   parameters?: Record<string, string>;
@@ -87,133 +246,9 @@ export function buildUnifiedSettingsCard(e?: {
           localConfig[tool.id][s.id] !== undefined;
 
         const section = CardService.newCardSection().setHeader(s.label);
-
-        // 1. Status indicator
-        const statusWidget = CardService.newDecoratedText().setWrapText(true);
-        if (s.secret) {
-          statusWidget
-            .setStartIcon(
-              CardService.newIconImage().setIcon(CardService.Icon.CONFIRMATION_NUMBER_ICON)
-            )
-            .setText('<b>🔒 Global Layer Only</b>')
-            .setBottomLabel('Private credential. Keep secure in your personal account properties.');
-        } else if (isWorkspace) {
-          statusWidget
-            .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.success))
-            .setText(`<font color="${COLORS.SUCCESS}"><b>Workspace Layer</b></font>`)
-            .setBottomLabel("Stored locally in this folder's sticky-assistant.json file.");
-        } else {
-          statusWidget
-            .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.info))
-            .setText(`<font color="${COLORS.MUTED}"><b>Global Layer</b></font>`)
-            .setBottomLabel('Using your account-wide preferences.');
-        }
-        section.addWidget(statusWidget);
-
-        // 2. Input widget
         const prefill = getToolSettingInitialValue(s, currentValues[s.id]);
-        const fieldName = `${tool.id}__${s.id}`;
 
-        if (s.type === 'multiline') {
-          section.addWidget(
-            CardService.newTextInput()
-              .setFieldName(fieldName)
-              .setTitle(s.label)
-              .setValue(String(prefill || ''))
-              .setMultiline(true)
-          );
-        } else if (s.type === 'checkbox') {
-          section.addWidget(
-            CardService.newSelectionInput()
-              .setType(CardService.SelectionInputType.CHECK_BOX)
-              .setFieldName(fieldName)
-              .addItem('Enabled', 'true', Boolean(prefill))
-          );
-        } else {
-          section.addWidget(
-            CardService.newTextInput()
-              .setFieldName(fieldName)
-              .setTitle(s.label)
-              .setValue(String(prefill || ''))
-          );
-        }
-
-        // 3. Action Buttons (Context-Sensitive & Decluttered)
-        const buttonSet = CardService.newButtonSet();
-
-        if (s.secret) {
-          // Secret setting: Only allow saving to Global (Zero Workspace leak path)
-          buttonSet.addButton(
-            CardService.newTextButton()
-              .setText('Save')
-              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-              .setOnClickAction(
-                CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                  toolId: tool.id,
-                  settingId: s.id,
-                  targetLayer: 'global',
-                  isFocused: 'true',
-                })
-              )
-          );
-        } else if (isWorkspace) {
-          // Workspace setting: Save (Workspace) and Reset (Global Revert)
-          buttonSet.addButton(
-            CardService.newTextButton()
-              .setText('Save')
-              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-              .setOnClickAction(
-                CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                  toolId: tool.id,
-                  settingId: s.id,
-                  targetLayer: 'workspace',
-                  isFocused: 'true',
-                })
-              )
-          );
-
-          buttonSet.addButton(
-            CardService.newTextButton()
-              .setText('Reset to Global')
-              .setOnClickAction(
-                CardService.newAction()
-                  .setFunctionName('deleteWorkspaceOverride')
-                  .setParameters({ toolId: tool.id, settingId: s.id, isFocused: 'true' })
-              )
-          );
-        } else {
-          // Global setting: Save (Global) and optionally Save to Workspace
-          buttonSet.addButton(
-            CardService.newTextButton()
-              .setText('Save')
-              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-              .setOnClickAction(
-                CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                  toolId: tool.id,
-                  settingId: s.id,
-                  targetLayer: 'global',
-                  isFocused: 'true',
-                })
-              )
-          );
-
-          if (parentFolder) {
-            buttonSet.addButton(
-              CardService.newTextButton()
-                .setText('Save to Workspace')
-                .setOnClickAction(
-                  CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                    toolId: tool.id,
-                    settingId: s.id,
-                    targetLayer: 'workspace',
-                    isFocused: 'true',
-                  })
-                )
-            );
-          }
-        }
-
-        section.addWidget(buttonSet);
+        renderSingleSetting(section, tool, s, prefill, parentFolder, isWorkspace, true);
         builder.addSection(section);
       });
     } else {
@@ -283,7 +318,7 @@ function renderToolSettingsToGeneralSection(
   e: any,
   parentFolder: GoogleAppsScript.Drive.Folder | null,
   localConfig: Record<string, any> | null
-) {
+): void {
   const settings = tool.settings;
   if (settings && settings.length > 0) {
     const currentValues = loadToolSettings(tool.id, settings, e);
@@ -295,129 +330,9 @@ function renderToolSettingsToGeneralSection(
         localConfig[tool.id] &&
         localConfig[tool.id][s.id] !== undefined;
 
-      // Setting Title & Status
-      const statusWidget = CardService.newDecoratedText().setWrapText(true);
-      if (s.secret) {
-        statusWidget
-          .setStartIcon(
-            CardService.newIconImage().setIcon(CardService.Icon.CONFIRMATION_NUMBER_ICON)
-          )
-          .setText(`<b>${s.label}</b> <font color="${COLORS.MUTED}">(🔒 Global Only)</font>`)
-          .setBottomLabel('Private credential. Kept secure in your account properties.');
-      } else if (isWorkspace) {
-        statusWidget
-          .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.success))
-          .setText(`<b>${s.label}</b> <font color="${COLORS.SUCCESS}">(Workspace Override)</font>`)
-          .setBottomLabel("Stored locally in this folder's sticky-assistant.json.");
-      } else {
-        statusWidget
-          .setStartIcon(CardService.newIconImage().setIconUrl(ICON_URLS.info))
-          .setText(`<b>${s.label}</b> <font color="${COLORS.MUTED}">(Global Active)</font>`)
-          .setBottomLabel('Using your account-wide preferences.');
-      }
-      section.addWidget(statusWidget);
-
-      // Input widget
       const prefill = getToolSettingInitialValue(s, currentValues[s.id]);
-      const fieldName = `${tool.id}__${s.id}`;
 
-      if (s.type === 'multiline') {
-        section.addWidget(
-          CardService.newTextInput()
-            .setFieldName(fieldName)
-            .setTitle(s.label)
-            .setValue(String(prefill || ''))
-            .setMultiline(true)
-        );
-      } else if (s.type === 'checkbox') {
-        section.addWidget(
-          CardService.newSelectionInput()
-            .setType(CardService.SelectionInputType.CHECK_BOX)
-            .setFieldName(fieldName)
-            .addItem('Enabled', 'true', Boolean(prefill))
-        );
-      } else {
-        section.addWidget(
-          CardService.newTextInput()
-            .setFieldName(fieldName)
-            .setTitle(s.label)
-            .setValue(String(prefill || ''))
-        );
-      }
-
-      // Buttons (Context-Sensitive & Decluttered)
-      const buttonSet = CardService.newButtonSet();
-
-      if (s.secret) {
-        buttonSet.addButton(
-          CardService.newTextButton()
-            .setText('Save')
-            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setOnClickAction(
-              CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                toolId: tool.id,
-                settingId: s.id,
-                targetLayer: 'global',
-                isFocused: 'false',
-              })
-            )
-        );
-      } else if (isWorkspace) {
-        buttonSet.addButton(
-          CardService.newTextButton()
-            .setText('Save')
-            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setOnClickAction(
-              CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                toolId: tool.id,
-                settingId: s.id,
-                targetLayer: 'workspace',
-                isFocused: 'false',
-              })
-            )
-        );
-
-        buttonSet.addButton(
-          CardService.newTextButton()
-            .setText('Reset')
-            .setOnClickAction(
-              CardService.newAction()
-                .setFunctionName('deleteWorkspaceOverride')
-                .setParameters({ toolId: tool.id, settingId: s.id, isFocused: 'false' })
-            )
-        );
-      } else {
-        buttonSet.addButton(
-          CardService.newTextButton()
-            .setText('Save')
-            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setOnClickAction(
-              CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                toolId: tool.id,
-                settingId: s.id,
-                targetLayer: 'global',
-                isFocused: 'false',
-              })
-            )
-        );
-
-        if (parentFolder) {
-          buttonSet.addButton(
-            CardService.newTextButton()
-              .setText('Save to Workspace')
-              .setOnClickAction(
-                CardService.newAction().setFunctionName('saveIndividualSetting').setParameters({
-                  toolId: tool.id,
-                  settingId: s.id,
-                  targetLayer: 'workspace',
-                  isFocused: 'false',
-                })
-              )
-          );
-        }
-      }
-
-      section.addWidget(buttonSet);
+      renderSingleSetting(section, tool, s, prefill, parentFolder, isWorkspace, false);
 
       // Separator if not last
       if (idx < settings.length - 1) {
@@ -491,7 +406,19 @@ export function saveIndividualSetting(e: {
     val = rawVal === 'true';
   }
 
-  // Validate single setting change if tool validator exists
+  // Validate single setting change
+  if (settingDef.validate) {
+    const parsedVal = settingDef.parse ? settingDef.parse(val) : val;
+    const validation = settingDef.validate(parsedVal);
+    if (!validation.ok) {
+      return CardService.newActionResponseBuilder()
+        .setNotification(
+          CardService.newNotification().setText(`Validation Error: ${validation.message}`)
+        )
+        .build();
+    }
+  }
+
   if (tool.validateSettings) {
     try {
       const currentValues = loadToolSettings(toolId, tool.settings, e);

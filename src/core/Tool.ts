@@ -1,23 +1,27 @@
+export interface ToolSettingOption {
+  value: string;
+  label: string;
+}
+
 export interface ToolSetting {
   id: string;
   label: string;
-  type: 'text' | 'multiline' | 'checkbox' | 'number';
+  type: 'text' | 'multiline' | 'checkbox' | 'number' | 'dropdown';
   placeholder?: string;
-  default?: string | boolean | number;
-  value?: string | boolean | number;
+  default?: any;
+  value?: any;
   secret?: boolean;
+  options?: ToolSettingOption[];
+  parse?: (val: any) => any;
+  format?: (val: any) => any;
+  validate?: (val: any) => { ok: boolean; message?: string };
 }
 
-export function getToolSettingDefaultValue(
-  setting: ToolSetting
-): string | boolean | number | undefined {
+export function getToolSettingDefaultValue(setting: ToolSetting): any {
   return setting.default ?? setting.value;
 }
 
-export function getToolSettingInitialValue(
-  setting: ToolSetting,
-  storedValue: string | boolean | number | undefined
-): string | boolean | number {
+export function getToolSettingInitialValue(setting: ToolSetting, storedValue: any): any {
   if (storedValue !== undefined) return storedValue;
 
   const defaultValue = getToolSettingDefaultValue(setting);

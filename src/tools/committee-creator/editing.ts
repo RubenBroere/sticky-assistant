@@ -3,20 +3,23 @@ import { getOrCreateFolder, getUniqueFileName, transformText } from './scanning'
 import { createCommitteeAnalyzeCard, createCommitteeExecutionCard } from './cards';
 import { buildStatusCard } from '../../core/cards';
 import { analyzeFolderName } from './scanning';
+import { committeeSettingsManager } from './settings';
 
 export function processCommitteeCloning(
   sourceTemplate: GoogleAppsScript.Drive.Folder,
   destFolder: GoogleAppsScript.Drive.Folder,
   analysis: any,
-  fileMap: Record<string, string>
+  fileMap: Record<string, string>,
+  settings: any
 ) {
-  copyFolderContents(sourceTemplate, destFolder, true, analysis, fileMap);
-  const newTemplateFolder = getOrCreateFolder(destFolder, COMMITTEE_CONFIG.TEMPLATE_NAME);
-  copyFolderContents(sourceTemplate, newTemplateFolder, false, analysis);
+  copyFolderContents(sourceTemplate, destFolder, true, analysis, fileMap, settings);
+  const newTemplateFolder = getOrCreateFolder(destFolder, settings.templateFolderName);
+  copyFolderContents(sourceTemplate, newTemplateFolder, false, analysis, null, settings);
 }
 
-export function scanForCommittees(rootFolder: GoogleAppsScript.Drive.Folder) {
-  const templates = rootFolder.getFoldersByName(COMMITTEE_CONFIG.TEMPLATE_NAME);
+export function scanForCommittees(rootFolder: GoogleAppsScript.Drive.Folder, settings: any) {
+  const templateName = settings.templateFolderName || 'Template';
+  const templates = rootFolder.getFoldersByName(templateName);
   if (templates.hasNext()) {
     return {
       mode: 'direct',
@@ -24,11 +27,15 @@ export function scanForCommittees(rootFolder: GoogleAppsScript.Drive.Folder) {
     };
   }
 
+  if (settings.includeSubCommittees === false) {
+    return { mode: 'none', committees: [] };
+  }
+
   const subs = rootFolder.getFolders();
   const committees: any[] = [];
   while (subs.hasNext()) {
     const sub = subs.next();
-    const subTemplates = sub.getFoldersByName(COMMITTEE_CONFIG.TEMPLATE_NAME);
+    const subTemplates = sub.getFoldersByName(templateName);
     if (subTemplates.hasNext()) {
       committees.push({ name: sub.getName(), folder: sub, template: subTemplates.next() });
     }
@@ -46,12 +53,15 @@ export function copyFolderContents(
   target: GoogleAppsScript.Drive.Folder,
   shouldTransform: boolean,
   analysis: any,
-  fileMap: Record<string, string> | null = null
+  fileMap: Record<string, string> | null = null,
+  settings: any
 ) {
   const files = source.getFiles();
   while (files.hasNext()) {
     const file = files.next();
-    const rawName = shouldTransform ? transformText(file.getName(), analysis) : file.getName();
+    const rawName = shouldTransform
+      ? transformText(file.getName(), analysis, settings)
+      : file.getName();
     const finalName = getUniqueFileName(target, rawName);
     const copiedFile = file.makeCopy(finalName, target);
     if (fileMap) {
@@ -59,28 +69,30 @@ export function copyFolderContents(
     }
 
     if (shouldTransform && file.getMimeType() === (MimeType as any).GOOGLE_DOCS) {
-      editDocContent(copiedFile.getId(), analysis);
+      editDocContent(copiedFile.getId(), analysis, settings);
     }
   }
 
   const folders = source.getFolders();
   while (folders.hasNext()) {
     const sub = folders.next();
-    const rawSubName = shouldTransform ? transformText(sub.getName(), analysis) : sub.getName();
+    const rawSubName = shouldTransform
+      ? transformText(sub.getName(), analysis, settings)
+      : sub.getName();
     const subTarget = getOrCreateFolder(target, rawSubName);
-    copyFolderContents(sub, subTarget, shouldTransform, analysis, fileMap);
+    copyFolderContents(sub, subTarget, shouldTransform, analysis, fileMap, settings);
   }
 }
 
-export function editDocContent(docId: string, analysis: any) {
+export function editDocContent(docId: string, analysis: any, settings: any) {
   try {
     const doc = DocumentApp.openById(docId);
     const body = doc.getBody();
     const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.FULL), analysis.nextFull);
-    body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.Y1), analysis.nextY1);
-    body.replaceText(escapeRegExp(COMMITTEE_CONFIG.PLACEHOLDERS.Y2), analysis.nextY2);
+    body.replaceText(escapeRegExp(settings.placeholderFull || '[YEAR]'), analysis.nextFull);
+    body.replaceText(escapeRegExp(settings.placeholderY1 || '[YEAR_1]'), analysis.nextY1);
+    body.replaceText(escapeRegExp(settings.placeholderY2 || '[YEAR_2]'), analysis.nextY2);
 
     doc.saveAndClose();
   } catch (e: any) {
@@ -135,6 +147,9 @@ export function runScan(e: any) {
   const sourceId = e.parameters.sourceId;
   const folderName = e.parameters.folderName;
 
+  const settings = committeeSettingsManager.load(e);
+  const templateName = settings.templateFolderName || 'Template';
+
   const analysis = analyzeFolderName(folderName);
   if (!analysis.found) {
     return buildStatusCard(
@@ -145,12 +160,12 @@ export function runScan(e: any) {
   }
 
   const sourceFolder = DriveApp.getFolderById(sourceId);
-  const scanResult = scanForCommittees(sourceFolder);
+  const scanResult = scanForCommittees(sourceFolder, settings);
 
   if (scanResult.mode === 'none') {
     return buildStatusCard(
       'Invalid Folder Structure',
-      `The selected folder does not contain a "${COMMITTEE_CONFIG.TEMPLATE_NAME}" subfolder, and neither do any of its subfolders. Please check your folder structure.`,
+      `The selected folder does not contain a "${templateName}" subfolder, and neither do any of its subfolders. Please check your folder structure.`,
       'error'
     );
   }
@@ -222,9 +237,10 @@ export function runExecution(e: any) {
   const mode = e.parameters.mode;
 
   try {
+    const settings = committeeSettingsManager.load(e);
     const sourceParentFolder = DriveApp.getFolderById(sourceId);
     const analysis = analyzeFolderName(folderName);
-    const scanResult = scanForCommittees(sourceParentFolder);
+    const scanResult = scanForCommittees(sourceParentFolder, settings);
     const newRootName = folderName.replace(analysis.currentPattern, analysis.nextFull);
     const destParents = sourceParentFolder.getParents();
     const parentOfYear = destParents.hasNext() ? destParents.next() : DriveApp.getRootFolder();
@@ -236,11 +252,11 @@ export function runExecution(e: any) {
       if (mode === 'direct') {
         targetFolder = destRootFolder;
       } else {
-        const subName = transformText(comm.name, analysis);
+        const subName = transformText(comm.name, analysis, settings);
         targetFolder = getOrCreateFolder(destRootFolder, subName);
       }
 
-      processCommitteeCloning(comm.template, targetFolder, analysis, fileMap);
+      processCommitteeCloning(comm.template, targetFolder, analysis, fileMap, settings);
     }
 
     updateDocLinks(fileMap);

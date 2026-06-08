@@ -42,3 +42,10 @@ The export button executes `exportCommentsToSheet` which:
 2. Automatically styles header cells with custom theme colors.
 3. Appends all extracted comments.
 4. Generates an interactive success card link to directly open the sheet in a new tab.
+
+### 4. Configuration & Customization
+
+The comments exporter settings can be customized:
+
+- **Export Sheet Prefix**: Customizable prefix for the exported spreadsheet name (default: `Comments Export`).
+- **Include Replies**: Toggle checkbox to include or exclude replies to parent comments in the spreadsheet export.

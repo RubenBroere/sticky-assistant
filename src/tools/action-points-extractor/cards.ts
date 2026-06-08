@@ -1,6 +1,6 @@
-import { loadToolSettings, getActiveParentFolder } from '../../core/settingsStore';
+import { getActiveParentFolder } from '../../core/settingsStore';
 import { ActionPointsScanResult, scanActionPointsDocument } from './scanning';
-import { ACTION_POINTS_SETTINGS } from './settings';
+import { actionPointsSettingsManager, ACTION_POINTS_SETTINGS } from './settings';
 import {
   applyDocumentActionsLogic,
   sendToTodoistLogic,
@@ -122,10 +122,9 @@ export function buildActionPointsScanResultsCard(
 
   // --- ACTIONS SECTION ---
   const actionSection = CardService.newCardSection().setHeader('Actions');
-  const configRaw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
-  const config = { todoistEnabled: !!configRaw.enableTodoist };
+  const config = actionPointsSettingsManager.load();
 
-  if (config.todoistEnabled && scanResult.openTasks.length > 0) {
+  if (config.enableTodoist && scanResult.openTasks.length > 0) {
     actionSection.addWidget(
       CardService.newTextButton()
         .setText('Sync Open Tasks to Todoist')
@@ -136,7 +135,7 @@ export function buildActionPointsScanResultsCard(
             .setParameters({ tasksJson: JSON.stringify(scanResult.openTasks) })
         )
     );
-  } else if (config.todoistEnabled) {
+  } else if (config.enableTodoist) {
     actionSection.addWidget(
       CardService.newDecoratedText()
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.STAR))

@@ -13,16 +13,5 @@ Provide a summary of the changes and the rationale behind them. Link any related
 ## Checklist
 
 - [ ] My code follows the style guidelines of this project
-- [ ] I have run `npm run format` to automatically apply styling rules
-- [ ] I have run `npm run lint` and resolved all errors and warnings
-- [ ] I have run `npm run test` locally and all tests passed
-- [ ] I have run `npm run build` and confirmed the bundle compiles correctly
+- [ ] I have tested my version of Sticky Assistant on my google account 
 - [ ] I have updated the documentation / READMEs for modified features
-
-## Local Verification Logs
-
-Provide logs, screenshots, or command outputs showing that changes work as expected:
-
-```bash
-# Output of tests/compilation here
-```

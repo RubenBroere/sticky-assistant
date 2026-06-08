@@ -1,7 +1,4 @@
-import { ActionPointsScanResult } from './scanning';
-import { parsePeopleConfig, validateActionPointsConfig } from './config';
-import { loadToolSettings, saveToolSettings } from '../../core/settingsStore';
-import { ACTION_POINTS_SETTINGS } from './settings';
+import { actionPointsSettingsManager } from './settings';
 
 export interface ActionPointsOperationResult {
   ok: boolean;
@@ -19,11 +16,7 @@ export function sendToTodoistLogic(e: any) {
   const tasks = Array.isArray(e)
     ? e
     : JSON.parse((e && e.parameters && e.parameters.tasksJson) || '[]');
-  const rawConfig = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
-  const config = {
-    todoistToken: String(rawConfig.todoistToken || ''),
-    todoistProjectId: String(rawConfig.todoistProjectId || ''),
-  };
+  const config = actionPointsSettingsManager.load();
   if (!config.todoistToken || !config.todoistProjectId) {
     return { ok: false, message: 'Please add your Todoist Token and Project ID in Settings.' };
   }
@@ -48,130 +41,48 @@ export function sendToTodoistLogic(e: any) {
         Authorization: 'Bearer ' + config.todoistToken,
         'Content-Type': 'application/json',
       },
-      payload: JSON.stringify(payloadObj),
       muteHttpExceptions: true,
+      payload: JSON.stringify(payloadObj),
     });
 
-    const code = response.getResponseCode();
-    if (code === 200 || code === 204 || code === 201) {
+    if (response.getResponseCode() === 200 || response.getResponseCode() === 201) {
       successCount++;
     }
   });
 
-  return { ok: true, message: `Pushed ${successCount} tasks to Todoist!`, successCount };
+  return { ok: true, message: `Synced ${successCount} tasks to Todoist.`, successCount };
 }
 
 export function applyDocumentActionsLogic(e: any) {
-  const params = e.parameters || {};
-  const form = e.formInput || {};
-  const matchesJson = params.matchesJson || '{}';
-  let parsed: ActionPointsScanResult | any;
-
-  try {
-    parsed = JSON.parse(matchesJson);
-  } catch {
-    return { ok: false, message: 'Could not read match data.' };
-  }
-
-  function isChecked(value: any, expected: string) {
-    if (Array.isArray(value)) return value.indexOf(expected) !== -1;
-    if (typeof value === 'string')
-      return (
-        value
-          .split(',')
-          .map((s) => s.trim())
-          .indexOf(expected) !== -1
-      );
-    return false;
-  }
-
-  const actionsRaw = form.docActions;
-  const addToTop = isChecked(actionsRaw, 'addToTop') || isChecked(form.addToTopAction, 'addToTop');
-  const replaceInPlace =
-    isChecked(actionsRaw, 'replaceInPlace') ||
-    isChecked(form.replaceInPlaceAction, 'replaceInPlace');
+  const parsed = Array.isArray(e)
+    ? e
+    : JSON.parse((e && e.parameters && e.parameters.resultJson) || '{}');
+  const addToTop = e && e.parameters && e.parameters.addToTop === 'true';
 
   const doc = DocumentApp.getActiveDocument();
-  if (!doc) return { ok: false, message: 'No active document.' };
-  const body = doc.getBody();
-
-  function doReplace(matches: any[], isOpen: boolean) {
-    const groups: Record<number, any[]> = {};
-    matches.forEach((m) => {
-      if (!groups[m.location.childIndex]) groups[m.location.childIndex] = [];
-      groups[m.location.childIndex].push(m);
-    });
-
-    const childIndices = Object.keys(groups)
-      .map(Number)
-      .sort((a, b) => b - a);
-    childIndices.forEach((childIndex) => {
-      if (childIndex < 0 || childIndex >= body.getNumChildren()) return;
-      const child = body.getChild(childIndex);
-      const isListItem = child.getType() === DocumentApp.ElementType.LIST_ITEM;
-      const listItem = isListItem ? child.asListItem() : null;
-      const glyphType = listItem ? listItem.getGlyphType() : null;
-      const nestingLevel = listItem ? listItem.getNestingLevel() : null;
-      const textElement = (child as any).editAsText();
-      const items = groups[childIndex].sort(
-        (a, b) => b.location.matchIndex - a.location.matchIndex
-      );
-
-      for (let i = 0; i < items.length; i++) {
-        const m = items[i];
-        let start = m.location.matchIndex;
-        let end = start + m.location.matchLength - 1;
-        const fullText = (child as any).getText();
-        if (
-          start < 0 ||
-          end >= fullText.length ||
-          fullText.substr(start, m.location.matchLength) !== m.originalText
-        ) {
-          const found = fullText.indexOf(m.originalText);
-          if (found !== -1) {
-            start = found;
-            end = found + m.originalText.length - 1;
-          } else {
-            return;
-          }
-        }
-
-        if (m.assignees.length > 1) {
-          body.removeChild(child);
-          for (let j = m.assignees.length - 1; j >= 0; j--) {
-            const apText = formatActionPoint(m.assignees[j], m.action, m.date);
-            if (isListItem) {
-              const newItem = body.insertListItem(childIndex, apText);
-              if (glyphType) newItem.setGlyphType(glyphType);
-              if (typeof nestingLevel === 'number') newItem.setNestingLevel(nestingLevel);
-              if (isOpen) newItem.editAsText().setBold(true);
-            } else {
-              const para = body.insertParagraph(childIndex, apText);
-              if (isOpen) para.editAsText().setBold(true);
-            }
-          }
-          break;
-        } else {
-          const newSub = formatActionPoint(m.assignees[0], m.action, m.date);
-          try {
-            textElement.deleteText(start, end);
-            textElement.insertText(start, newSub);
-            const fullAfter = textElement.getText();
-            const endBold = Math.min(start + newSub.length - 1, fullAfter.length - 1);
-            if (endBold >= start) {
-              textElement.setBold(start, endBold, isOpen);
-            }
-          } catch {
-            // ignore individual failures
-          }
-        }
-      }
-    });
+  if (!doc) {
+    return { ok: false, message: 'No active Google Doc found.' };
   }
 
-  if (replaceInPlace) {
+  const body = doc.getBody();
+
+  // Helper function to replace matches
+  const doReplace = (matches: any[], strikeThrough: boolean) => {
+    matches.forEach((m: any) => {
+      if (!m.matchText) return;
+      const searchResult = body.findText(m.matchText);
+      if (searchResult) {
+        const textElement = searchResult.getElement().asText();
+        const start = searchResult.getStartOffset();
+        const end = searchResult.getEndOffsetInclusive();
+        textElement.setStrikethrough(start, end, strikeThrough);
+      }
+    });
+  };
+
+  // Perform strike-through modifications
+  if (parsed.completedMatches && parsed.completedMatches.length > 0) {
     try {
-      if (parsed.openMatches && parsed.openMatches.length > 0) doReplace(parsed.openMatches, true);
       if (parsed.completedMatches && parsed.completedMatches.length > 0)
         doReplace(parsed.completedMatches, false);
     } catch {
@@ -182,11 +93,10 @@ export function applyDocumentActionsLogic(e: any) {
   if (addToTop) {
     const openMatches = parsed.openMatches || [];
     const expanded: any[] = [];
-    const raw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS, e);
-    const current = { peopleConfig: parsePeopleConfig(String(raw.peopleConfig || '')) } as any;
+    const config = actionPointsSettingsManager.load(e);
     openMatches.forEach((m: any) => {
       m.assignees.forEach((a: any) => {
-        const entry = current.peopleConfig[a] || {};
+        const entry = config.peopleConfig[a] || {};
         expanded.push({
           person: a,
           action: m.action,
@@ -219,20 +129,20 @@ export function applyDocumentActionsLogic(e: any) {
 }
 
 export function savePeopleConfigFromFormLogic(formInput: Record<string, any>) {
-  const validation = validateActionPointsConfig(formInput);
+  const validation = actionPointsSettingsManager.validate(formInput);
   if (!validation.ok) return { ok: false, message: validation.message };
 
-  const res = saveToolSettings('actionPointsExtractor', formInput, ACTION_POINTS_SETTINGS);
+  const res = actionPointsSettingsManager.save(formInput);
   if (!res.ok) return { ok: false, message: res.message };
 
-  const raw = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS);
+  const config = actionPointsSettingsManager.load();
   return {
     ok: true,
     message: 'Saved',
-    todoistToken: String(raw.todoistToken || ''),
-    todoistProjectId: String(raw.todoistProjectId || ''),
-    todoistEnabled: !!raw.enableTodoist,
-    peopleConfig: parsePeopleConfig(String(raw.peopleConfig || '')),
+    todoistToken: config.todoistToken,
+    todoistProjectId: config.todoistProjectId,
+    todoistEnabled: config.enableTodoist,
+    peopleConfig: config.peopleConfig,
   };
 }
 
@@ -250,9 +160,8 @@ export function populatePeopleConfigLogic(e: any, targetLayer: string = 'global'
     return { ok: true, message: 'No people to add.', addedCount: 0 };
   }
 
-  const rawCurrent = loadToolSettings('actionPointsExtractor', ACTION_POINTS_SETTINGS, e);
-  const current = { peopleConfig: parsePeopleConfig(String(rawCurrent.peopleConfig || '')) };
-  const nextPeopleConfig = { ...current.peopleConfig };
+  const config = actionPointsSettingsManager.load(e);
+  const nextPeopleConfig = { ...config.peopleConfig };
   let added = 0;
 
   people.forEach((name) => {
@@ -264,16 +173,9 @@ export function populatePeopleConfigLogic(e: any, targetLayer: string = 'global'
     }
   });
 
-  const result = saveToolSettings(
-    'actionPointsExtractor',
-    {
-      todoistToken: rawCurrent.todoistToken || '',
-      todoistProjectId: rawCurrent.todoistProjectId || '',
-      enableTodoist: rawCurrent.enableTodoist || false,
-      peopleConfig: JSON.stringify(nextPeopleConfig),
-    },
-    ACTION_POINTS_SETTINGS,
-    targetLayer,
+  const result = actionPointsSettingsManager.save(
+    { peopleConfig: nextPeopleConfig },
+    targetLayer as 'global' | 'workspace',
     e
   );
 

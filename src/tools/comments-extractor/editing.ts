@@ -1,3 +1,5 @@
+import { commentsExtractorSettingsManager } from './settings';
+
 export interface CommentsExportResult {
   ok: boolean;
   message: string;
@@ -15,7 +17,9 @@ export function exportCommentsToSheetLogic(e: any): CommentsExportResult {
   const fileName = e.parameters.itemName;
 
   try {
-    const ss = SpreadsheetApp.create(`Comments Export: ${fileName}`);
+    const settings = commentsExtractorSettingsManager.load(e);
+    const prefix = settings.exportSheetPrefix || 'Comments Export';
+    const ss = SpreadsheetApp.create(`${prefix}: ${fileName}`);
     const sheet = ss.getActiveSheet();
 
     const headers = ['Date', 'Name', 'ID', 'Reply To (ID)', 'Comment', 'Quoted Content / Anchor'];
@@ -44,7 +48,7 @@ export function exportCommentsToSheetLogic(e: any): CommentsExportResult {
 
           allCommentData.push([parentDate, parentAuthor, comment.id, '', comment.content, quote]);
 
-          if (comment.replies && comment.replies.length > 0) {
+          if (settings.includeReplies && comment.replies && comment.replies.length > 0) {
             comment.replies.forEach((reply: any) => {
               const replyAuthor = reply.author ? reply.author.displayName : 'Unknown';
               const replyDate = formatExportDate(reply.createdTime);
