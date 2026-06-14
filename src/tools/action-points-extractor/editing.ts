@@ -56,8 +56,23 @@ export function sendToTodoistLogic(e: any) {
 export function applyDocumentActionsLogic(e: any) {
   const parsed = Array.isArray(e)
     ? e
-    : JSON.parse((e && e.parameters && e.parameters.resultJson) || '{}');
-  const addToTop = e && e.parameters && e.parameters.addToTop === 'true';
+    : JSON.parse(
+        (e && e.parameters && (e.parameters.matchesJson || e.parameters.resultJson)) || '{}'
+      );
+
+  const formInput = (e && e.formInput) || {};
+  const formInputs = (e && e.formInputs) || {};
+
+  const addToTop =
+    (e && e.parameters && e.parameters.addToTop === 'true') ||
+    formInput.addToTopAction === 'addToTop' ||
+    (formInputs.addToTopAction && formInputs.addToTopAction.indexOf('addToTop') !== -1);
+
+  const replaceInPlace =
+    (e && e.parameters && e.parameters.replaceInPlace === 'true') ||
+    formInput.replaceInPlaceAction === 'replaceInPlace' ||
+    (formInputs.replaceInPlaceAction &&
+      formInputs.replaceInPlaceAction.indexOf('replaceInPlace') !== -1);
 
   const doc = DocumentApp.getActiveDocument();
   if (!doc) {
@@ -69,8 +84,28 @@ export function applyDocumentActionsLogic(e: any) {
   // Helper function to replace matches
   const doReplace = (matches: any[], strikeThrough: boolean) => {
     matches.forEach((m: any) => {
-      if (!m.matchText) return;
-      const searchResult = body.findText(m.matchText);
+      try {
+        if (m.location && typeof m.location.childIndex === 'number') {
+          const child = body.getChild(m.location.childIndex);
+          if (
+            child &&
+            (child.getType() === DocumentApp.ElementType.PARAGRAPH ||
+              child.getType() === DocumentApp.ElementType.LIST_ITEM)
+          ) {
+            const textElement = (child as any).editAsText();
+            const start = m.location.matchIndex;
+            const end = m.location.matchIndex + m.location.matchLength - 1;
+            textElement.setStrikethrough(start, end, strikeThrough);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to format by location, falling back to text search: ', err);
+      }
+
+      const matchText = m.originalText || m.matchText;
+      if (!matchText) return;
+      const searchResult = body.findText(matchText);
       if (searchResult) {
         const textElement = searchResult.getElement().asText();
         const start = searchResult.getStartOffset();
@@ -81,10 +116,9 @@ export function applyDocumentActionsLogic(e: any) {
   };
 
   // Perform strike-through modifications
-  if (parsed.completedMatches && parsed.completedMatches.length > 0) {
+  if (replaceInPlace && parsed.completedMatches && parsed.completedMatches.length > 0) {
     try {
-      if (parsed.completedMatches && parsed.completedMatches.length > 0)
-        doReplace(parsed.completedMatches, false);
+      doReplace(parsed.completedMatches, true);
     } catch {
       // Allow addToTop to proceed even if a replacement fails
     }
